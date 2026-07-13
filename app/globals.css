@@ -1,26 +1,38 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ────────────────────────────────────────────────────────────────
+   VDE Cockpit — design tokens
+   Source de vérité : CLAUDE.md (§ Design system).
+   Référence visuelle : design-ref/VDE Cockpit - autonome.html
+   Toute évolution de palette/typo doit être répercutée dans CLAUDE.md.
+   ──────────────────────────────────────────────────────────────── */
+@theme {
+  /* ── 6 couleurs de base ── */
+  --color-brand: #0f3d2e; /* vert profond — sidebar, actions primaires */
+  --color-gold: #c8a15a; /* or — logo, accents, mises en avant */
+  --color-cream: #f7f5ef; /* crème — fond applicatif (canvas) */
+  --color-ink: #1a1a1a; /* encre — texte principal */
+  --color-muted: #5c6b63; /* vert-gris — texte secondaire, bordures */
+  --color-alert: #d4583f; /* terracotta — alertes, destructif */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* ── couleurs de support (états, badges, surfaces) ── */
+  --color-brand-hover: #155940; /* survol / états sur le vert */
+  --color-gold-ink: #8a6a2e; /* texte or lisible sur fond clair */
+  --color-success: #2e7d5b; /* positif — badges de statut */
+  --color-surface: #ffffff; /* surface des cartes */
+  --color-line: #e7e2d7; /* bordures discrètes sur le crème */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* ── 3 typographies ── */
+  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }
+
+/* Tous les chiffres passent en JetBrains Mono via la classe `tabular` ;
+   les valeurs numériques utilisent l'utilitaire `font-mono`. */
