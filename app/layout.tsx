@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter_Tight, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
 import "./globals.css";
 
 // Police UI du brand kit VDE (alignée sur le prototype design-ref).
@@ -38,7 +39,9 @@ export default function RootLayout({
       lang="fr"
       className={`${interTight.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} h-full`}
     >
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

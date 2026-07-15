@@ -4,6 +4,10 @@
 -- fois le projet Supabase fourni par Oury. Accès réservé aux authentifiés.
 
 -- ── Enums ────────────────────────────────────────────────────────────────────
+-- Entité juridique / marché : sépare toutes les données (défaut FR). Le switch
+-- global et le filtrage par entité viendront plus tard.
+create type entite as enum ('FR', 'MA');
+
 create type canal as enum ('fb_ads', 'import', 'manuel');
 
 create type statut_lead as enum (
@@ -27,6 +31,7 @@ create type activite_type as enum (
 -- ── Table leads ──────────────────────────────────────────────────────────────
 create table leads (
   id                  text primary key,               -- FB-XXX
+  entite              entite not null default 'FR',
   date_reception      timestamptz not null default now(),
   canal               canal not null default 'import',
   source_campagne     text,
@@ -64,6 +69,7 @@ create table leads (
   statut_change_at    timestamptz not null default now()
 );
 
+create index leads_entite_idx on leads (entite);
 create index leads_date_reception_idx on leads (date_reception desc);
 create index leads_statut_idx on leads (statut);
 create index leads_temperature_idx on leads (temperature);

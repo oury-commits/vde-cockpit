@@ -14,6 +14,7 @@ import type {
   ActiviteType,
   Canal,
   Devis,
+  Entite,
   Lead,
   MotifPerte,
   Statut,
@@ -24,14 +25,14 @@ import { nextRef } from "@/lib/leads/ref";
 import { scoreTemperature } from "@/lib/leads/scoring";
 import { buildDevis, buildEcheancier, nextDevisRef } from "@/lib/leads/devis";
 import { isSameContact } from "@/lib/leads/filters";
-import { buildSeed } from "@/lib/leads/seed";
 import { STATUT_META } from "@/lib/leads/meta";
-
-const STORAGE_KEY = "vde.crm.v1";
+import { uid } from "@/lib/uid";
+import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
 
 /** Entrée créée manuellement ou via import. */
 export type LeadInput = LeadDraft & {
   canal?: Canal;
+  entite?: Entite;
   assigne_a?: string | null;
   statut?: Statut;
 };
@@ -43,6 +44,7 @@ export interface ImportReport {
 
 interface StoreValue {
   loaded: boolean;
+  isDemo: boolean;
   leads: Lead[];
   activites: Activite[];
   activitesFor: (leadId: string) => Activite[];
@@ -64,60 +66,38 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
-function uid(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `a-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
-
-interface Persisted {
-  leads: Lead[];
-  activites: Activite[];
-}
-
-function seedState(): Persisted {
-  const now = new Date();
-  const leads = buildSeed(now);
-  const activites: Activite[] = leads.map((l) => ({
-    id: uid(),
-    lead_id: l.id,
-    type: "import",
-    contenu: "Lead importé (démonstration)",
-    auteur: "Système",
-    created_at: l.date_reception,
-  }));
-  return { leads, activites };
-}
-
 export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
 
-  // Hydratation client (localStorage) — sinon seed de démo.
+  // Hydratation via le repository actif (local en 2A, Supabase en 2B).
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const state: Persisted = raw ? JSON.parse(raw) : seedState();
-      setLeads(state.leads);
-      setActivites(state.activites);
-    } catch {
-      const state = seedState();
-      setLeads(state.leads);
-      setActivites(state.activites);
-    }
-    setLoaded(true);
+    let active = true;
+    getRepository()
+      .loadAll()
+      .then((state) => {
+        if (!active) return;
+        setLeads(state.leads);
+        setActivites(state.activites);
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        const state = seedState();
+        setLeads(state.leads);
+        setActivites(state.activites);
+        setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Sauvegarde continue.
+  // Sauvegarde continue via le repository.
   useEffect(() => {
     if (!loaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ leads, activites }));
-    } catch {
-      /* quota / mode privé : on ignore silencieusement */
-    }
+    void getRepository().persistAll({ leads, activites });
   }, [loaded, leads, activites]);
 
   const pushActivite = useCallback(
@@ -143,6 +123,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       const recv = input.date_reception ?? now;
       return {
         id,
+        entite: input.entite ?? "FR",
         date_reception: recv,
         canal: input.canal ?? "manuel",
         source_campagne: input.source_campagne ?? null,
@@ -380,6 +361,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreValue>(
     () => ({
       loaded,
+      isDemo: repositoryKind === "local",
       leads,
       activites,
       activitesFor,

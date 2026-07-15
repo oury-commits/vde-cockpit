@@ -3,6 +3,13 @@
 // Ce fichier est la source TypeScript ; le schéma SQL équivalent (prêt pour
 // Supabase) vit dans supabase/migrations/. Tenir les deux alignés.
 
+/**
+ * Entité juridique / marché. Sépare TOUTES les données (VDE France / Maroc).
+ * Ajouté dès maintenant pour la future architecture multi-entité (défaut FR) ;
+ * le switch global + le filtrage viendront plus tard (hors périmètre actuel).
+ */
+export type Entite = "FR" | "MA";
+
 /** Canal d'entrée du lead. */
 export type Canal = "fb_ads" | "import" | "manuel";
 
@@ -95,6 +102,7 @@ export interface Activite {
 /** Un lead — cœur du CRM (§2). */
 export interface Lead {
   id: string; // FB-XXX, incrémental, sans trou
+  entite: Entite; // défaut FR
   date_reception: string;
   canal: Canal;
   source_campagne?: string | null;

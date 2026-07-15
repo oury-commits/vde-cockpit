@@ -17,6 +17,7 @@ function base(now: Date, n: number, daysAgo: number, over: Partial<Lead>): Lead 
   const recv = iso(now, daysAgo);
   return {
     id: `FB-${String(n).padStart(3, "0")}`,
+    entite: "FR",
     date_reception: recv,
     canal: "import",
     source_campagne: "Démo — Borne maison FB",

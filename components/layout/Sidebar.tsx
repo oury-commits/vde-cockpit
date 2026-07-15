@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { NAV_SECTIONS, type NavItem } from "@/components/layout/nav";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { cn } from "@/lib/cn";
 
 function isActive(pathname: string, href: string): boolean {
@@ -35,6 +37,8 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { enabled, user, signOut } = useAuth();
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[236px] shrink-0 flex-col overflow-y-auto bg-brand text-cream md:flex">
@@ -76,17 +80,31 @@ export function Sidebar() {
       </nav>
 
       {/* Profil */}
-      {/* TODO: brancher données réelles — profil statique (à lire depuis la session utilisateur) */}
+      {/* TODO: brancher données réelles — profil statique tant que l'auth n'est
+          pas active ; l'email réel vient de la session dès Supabase configuré. */}
       <div className="mt-auto flex items-center gap-2.5 border-t border-cream/10 p-3">
         <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gold/20 text-xs font-semibold text-gold">
           OD
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-semibold">Oury</div>
           <div className="truncate text-[10.5px] text-cream/55">
-            oury@visiondigitalenergies.fr
+            {user?.email ?? "oury@visiondigitalenergies.fr"}
           </div>
         </div>
+        {enabled ? (
+          <button
+            type="button"
+            aria-label="Se déconnecter"
+            onClick={async () => {
+              await signOut();
+              router.replace("/login");
+            }}
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-cream/60 transition-colors hover:bg-white/5 hover:text-cream"
+          >
+            <LogOut className="size-4" strokeWidth={1.75} />
+          </button>
+        ) : null}
       </div>
     </aside>
   );

@@ -124,7 +124,7 @@ export function LeadsView() {
         </div>
       </header>
 
-      <DemoBanner />
+      {store.isDemo ? <DemoBanner /> : null}
 
       {/* Recherche instantanée */}
       <div className="relative">
