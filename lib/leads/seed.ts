@@ -182,7 +182,7 @@ function attachDevis(
   const lead = leads.find((l) => l.id === id);
   if (!lead) return;
   const num = id.replace("FB-", "");
-  const devis = buildDevis(lead, `VDE-2026-${num}`, iso(now, daysAgo));
+  const devis = buildDevis(lead, `VDE-2026-${num}`, iso(now, daysAgo), "FR");
   devis.statut = statut;
   lead.devis = devis;
   if (statut === "signe") {

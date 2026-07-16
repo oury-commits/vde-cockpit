@@ -1,69 +1,46 @@
 import { jsPDF } from "jspdf";
-import type { Devis, Echeance, Lead, LigneDevis } from "@/lib/types";
-import { formatDate, formatEuros } from "@/lib/format";
-import { PUISSANCE_LABEL } from "@/lib/leads/meta";
+import type { Devis, Echeance, Entite, Lead, ModeTva } from "@/lib/types";
+import { formatDate, formatMontant } from "@/lib/format";
+import { entiteConfig, optionTva } from "@/lib/entite/config";
+import { buildLignes } from "@/lib/leads/pricing";
 
-/** TVA IRVE résidentiel B2C. */
-export const TAUX_TVA = 0.055;
+export { buildLignes } from "@/lib/leads/pricing";
 
-// TODO: brancher données réelles — grille tarifaire de démonstration.
-// Ces montants HT sont des placeholders : à remplacer par la grille VDE réelle
-// avant livraison MVP.
-const PRIX_FOURNITURE: Record<string, number> = {
-  "3.7": 490,
-  "7.4": 690,
-  "11": 1190,
-  "22": 1590,
-};
-const INSTALLATION_BASE = 590; // HT, forfait pose + raccordement
-const PRIX_METRE_SUP = 25; // HT par mètre au-delà de 5 m
-const METRES_INCLUS = 5;
-
-const DEVIS_RE = /^VDE-2026-(\d+)$/;
-
-/** Prochaine ref VDE-2026-XXX au vu des devis existants. */
-export function nextDevisRef(existingRefs: string[]): string {
+/** Prochaine ref au format de l'entité (VDE-2026-XXX / VDE-MA-2026-XXX). */
+export function nextDevisRef(existingRefs: string[], entite: Entite): string {
+  const prefix = entiteConfig(entite).prefixeDevis;
+  const re = new RegExp(`^${prefix}-(\\d+)$`);
   const max = existingRefs.reduce((acc, ref) => {
-    const m = DEVIS_RE.exec(ref.trim());
+    const m = re.exec(ref.trim());
     return m ? Math.max(acc, Number.parseInt(m[1], 10)) : acc;
   }, 0);
-  return `VDE-2026-${String(max + 1).padStart(3, "0")}`;
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
 }
 
-/** Lignes de devis pré-remplies depuis la fiche lead (§6.5). */
-export function buildLignes(lead: Lead): LigneDevis[] {
-  const lignes: LigneDevis[] = [];
-  const p = lead.puissance_souhaitee ?? "7.4";
-  lignes.push({
-    label: `Borne de recharge ${PUISSANCE_LABEL[p]} — fourniture`,
-    montant_ht: PRIX_FOURNITURE[p] ?? PRIX_FOURNITURE["7.4"],
-  });
-  lignes.push({
-    label: "Installation et raccordement",
-    montant_ht: INSTALLATION_BASE,
-  });
-  const dist = lead.distance_tableau ?? 0;
-  if (dist > METRES_INCLUS) {
-    lignes.push({
-      label: `Supplément distance tableau (+${dist - METRES_INCLUS} m)`,
-      montant_ht: (dist - METRES_INCLUS) * PRIX_METRE_SUP,
-    });
-  }
-  return lignes;
-}
-
-/** Construit un devis complet (HT / TVA 5,5 % / TTC) pour un lead. */
-export function buildDevis(lead: Lead, ref: string, dateISO: string): Devis {
+/** Construit un devis : devise + TVA + lignes selon l'entité du lead. */
+export function buildDevis(
+  lead: Lead,
+  ref: string,
+  dateISO: string,
+  entite: Entite,
+  mode?: ModeTva,
+): Devis {
+  const cfg = entiteConfig(entite);
+  const modeTva = mode ?? cfg.tvaDefaut;
+  const taux = optionTva(entite, modeTva).taux;
   const lignes = buildLignes(lead);
   const montant_ht = lignes.reduce((s, l) => s + l.montant_ht, 0);
-  const montant_tva = Math.round(montant_ht * TAUX_TVA * 100) / 100;
+  const montant_tva = Math.round(montant_ht * taux * 100) / 100;
   const montant_ttc = Math.round((montant_ht + montant_tva) * 100) / 100;
   return {
     ref,
+    entite,
+    devise: cfg.devise,
     date_creation: dateISO,
     lignes,
     montant_ht,
-    taux_tva: TAUX_TVA,
+    mode_tva: modeTva,
+    taux_tva: taux,
     montant_tva,
     montant_ttc,
     statut: "brouillon",
@@ -75,7 +52,7 @@ export function buildEcheancier(ttc: number): Echeance[] {
   const round = (n: number) => Math.round(n * 100) / 100;
   const acompte = round(ttc * 0.4);
   const demarrage = round(ttc * 0.4);
-  const solde = round(ttc - acompte - demarrage); // absorbe l'arrondi
+  const solde = round(ttc - acompte - demarrage);
   return [
     { label: "acompte", pct: 40, montant: acompte, statut: "attendu" },
     { label: "demarrage", pct: 40, montant: demarrage, statut: "attendu" },
@@ -95,24 +72,28 @@ const MUTED: [number, number, number] = [92, 107, 99];
 
 /**
  * Génère le PDF du devis et déclenche le téléchargement (client only).
- * Le PDF utilise Helvetica (police standard PDF) : les règles de police UI
- * du cockpit ne s'appliquent pas à un document imprimable.
+ * Devise, TVA et mentions suivent l'entité du devis. Police Helvetica
+ * (standard PDF) : les règles de police UI ne s'appliquent pas à un document.
  */
 export function generateDevisPdf(lead: Lead, devis: Devis): void {
+  const cfg = entiteConfig(devis.entite);
+  const opt = optionTva(devis.entite, devis.mode_tva);
+  const eur = (n: number) => formatMontant(n, devis.devise, { cents: true });
+
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = 210;
   const mx = 16;
 
-  // Bandeau d'en-tête
+  // En-tête
   doc.setFillColor(...BRAND);
   doc.rect(0, 0, pageW, 30, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Vision Digital Energies", mx, 15);
+  doc.text(cfg.nom, mx, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text("IRVE résidentiel · VDE France", mx, 21);
+  doc.text("IRVE résidentiel", mx, 21);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text(devis.ref, pageW - mx, 15, { align: "right" });
@@ -139,7 +120,7 @@ export function generateDevisPdf(lead: Lead, devis: Devis): void {
   if (lead.telephone) doc.text(lead.telephone, mx, y), (y += 5);
   if (lead.email) doc.text(lead.email, mx, y), (y += 5);
 
-  // Tableau des lignes
+  // Lignes
   y += 6;
   doc.setDrawColor(231, 226, 215);
   doc.setTextColor(...MUTED);
@@ -153,9 +134,7 @@ export function generateDevisPdf(lead: Lead, devis: Devis): void {
   doc.setFontSize(10);
   for (const ligne of devis.lignes) {
     doc.text(ligne.label, mx, y);
-    doc.text(formatEuros(ligne.montant_ht, { cents: true }), pageW - mx, y, {
-      align: "right",
-    });
+    doc.text(eur(ligne.montant_ht), pageW - mx, y, { align: "right" });
     y += 7;
   }
 
@@ -163,25 +142,22 @@ export function generateDevisPdf(lead: Lead, devis: Devis): void {
   y += 2;
   doc.line(pageW - 80, y, pageW - mx, y);
   y += 6;
-  const totLabel = (label: string, val: string, bold = false) => {
+  const tot = (label: string, val: string, bold = false) => {
     doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.text(label, pageW - 80, y);
     doc.text(val, pageW - mx, y, { align: "right" });
     y += 6;
   };
-  totLabel("Total HT", formatEuros(devis.montant_ht, { cents: true }));
-  totLabel(
-    "TVA 5,5 %",
-    formatEuros(devis.montant_tva, { cents: true }),
-  );
+  tot("Total HT", eur(devis.montant_ht));
+  const tvaLabel =
+    devis.mode_tva === "fr_autoliquidation"
+      ? "TVA — autoliquidation"
+      : `TVA ${new Intl.NumberFormat("fr-FR").format(devis.taux_tva * 100)} %`;
+  tot(tvaLabel, eur(devis.montant_tva));
   doc.setFontSize(11);
-  totLabel(
-    "Total TTC",
-    formatEuros(devis.montant_ttc, { cents: true }),
-    true,
-  );
+  tot("Total TTC", eur(devis.montant_ttc), true);
 
-  // Échéancier 40/40/20
+  // Échéancier
   y += 6;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
@@ -193,24 +169,24 @@ export function generateDevisPdf(lead: Lead, devis: Devis): void {
   doc.setFontSize(10);
   for (const e of buildEcheancier(devis.montant_ttc)) {
     doc.text(`${e.pct} % — ${ECHEANCE_LABEL[e.label]}`, mx, y);
-    doc.text(formatEuros(e.montant, { cents: true }), pageW - mx, y, {
-      align: "right",
-    });
+    doc.text(eur(e.montant), pageW - mx, y, { align: "right" });
     y += 7;
   }
 
-  // Mentions
+  // Mentions (légales par entité + mode TVA spécifique)
   y += 8;
   doc.setTextColor(...MUTED);
   doc.setFontSize(8);
+  if (opt.mention) {
+    doc.text(opt.mention, mx, y);
+    y += 4;
+  }
+  for (const line of cfg.mentions) {
+    doc.text(line, mx, y);
+    y += 4;
+  }
   doc.text(
-    "TVA à 5,5 % applicable à l'installation de bornes de recharge en résidentiel.",
-    mx,
-    y,
-  );
-  y += 4;
-  doc.text(
-    "Devis de démonstration — grille tarifaire à valider avant émission réelle.",
+    "Devis de démonstration — grille tarifaire et mentions à valider avant émission réelle.",
     mx,
     y,
   );

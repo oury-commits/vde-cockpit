@@ -271,8 +271,8 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       const existingRefs = leads
         .map((l) => l.devis?.ref)
         .filter((r): r is string => Boolean(r));
-      const ref = nextDevisRef(existingRefs);
-      const devis = buildDevis(lead, ref, new Date().toISOString());
+      const ref = nextDevisRef(existingRefs, lead.entite);
+      const devis = buildDevis(lead, ref, new Date().toISOString(), lead.entite);
       const now = new Date().toISOString();
       setLeads((prev) =>
         prev.map((l) =>

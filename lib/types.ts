@@ -10,8 +10,28 @@
  */
 export type Entite = "FR" | "MA";
 
+/** Devise d'une entité (EUR pour FR, MAD/DH pour MA). */
+export type Devise = "EUR" | "MAD";
+
+/** Mode de TVA appliqué à un devis (dépend de l'entité). */
+export type ModeTva =
+  | "fr_5_5"
+  | "fr_10"
+  | "fr_20"
+  | "fr_autoliquidation"
+  | "ma_20";
+
 /** Canal d'entrée du lead. */
 export type Canal = "fb_ads" | "import" | "manuel";
+
+/** Qualification IRVE (réponses du formulaire). */
+export type Reseau = "mono" | "tri";
+export type Occupation = "proprietaire" | "locataire";
+export type Emplacement = "interieur" | "exterieur";
+export type Fixation = "murale" | "pied";
+
+/** Projet panneaux solaires — remplace l'ancien oui/non (cross-sell énergie). */
+export type PvProjet = "aucun" | "3kwc" | "6kwc" | "9kwc" | "autre";
 
 /** Statuts du pipeline (§5). `perdu` est une sortie possible depuis tout statut. */
 export type Statut =
@@ -77,13 +97,16 @@ export interface LigneDevis {
   montant_ht: number;
 }
 
-/** Devis lié à un lead — format VDE-2026-XXX, TVA 5,5 % (IRVE résidentiel). */
+/** Devis lié à un lead. Devise, TVA et numérotation suivent l'entité. */
 export interface Devis {
-  ref: string; // VDE-2026-XXX
+  ref: string; // VDE-2026-XXX (FR) / VDE-MA-2026-XXX (MA)
+  entite: Entite;
+  devise: Devise; // EUR (FR) / MAD (MA)
   date_creation: string;
   lignes: LigneDevis[];
   montant_ht: number;
-  taux_tva: number; // 0.055
+  mode_tva: ModeTva;
+  taux_tva: number; // 0.055, 0.10, 0.20, ou 0 (autoliquidation)
   montant_tva: number;
   montant_ttc: number;
   statut: "brouillon" | "envoye" | "signe";
@@ -118,6 +141,17 @@ export interface Lead {
   puissance_souhaitee?: Puissance | null;
   distance_tableau?: number | null; // mètres
   eligible_advenir?: boolean | null;
+
+  // ── Qualification IRVE (formulaire Facebook, colonnes 0→11) ──
+  reseau?: Reseau | null; // 0
+  puissance_compteur_kva?: number | null; // 1
+  occupation?: Occupation | null; // 3
+  emplacement?: Emplacement | null; // 4
+  fixation?: Fixation | null; // 5
+  obstacles?: string | null; // 7
+  budget?: string | null; // 10 (réponse brute du formulaire)
+  pv_projet?: PvProjet | null; // 9 (panneaux solaires, enrichi en kWc)
+  pv_autre?: string | null; // précision si pv_projet = "autre"
 
   temperature: Temperature; // auto (§6.1)
   statut: Statut;

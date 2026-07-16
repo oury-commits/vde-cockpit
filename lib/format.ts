@@ -1,19 +1,33 @@
 // Formatage FR — montants, dates. Les valeurs numériques sont rendues en
 // JetBrains Mono côté UI (règle CLAUDE.md).
 
-const NBSP = " ";
+import type { Devise } from "@/lib/types";
 
-/** "12 480 €" (défaut) ou "1 234,56 €" avec centimes. */
-export function formatEuros(
+const NBSP = " ";
+const SYMBOLE: Record<Devise, string> = { EUR: "€", MAD: "DH" };
+
+/** Montant dans la devise de l'entité : "12 480 €" (FR) ou "12 480 DH" (MA). */
+export function formatMontant(
   value: number,
+  devise: Devise = "EUR",
   opts: { cents?: boolean } = {},
 ): string {
   const n = new Intl.NumberFormat("fr-FR", {
     minimumFractionDigits: opts.cents ? 2 : 0,
     maximumFractionDigits: opts.cents ? 2 : 0,
-  }).format(value);
-  // Intl utilise des espaces insécables étroits ; on normalise en NBSP.
-  return `${n.replace(/ /g, NBSP)}${NBSP}€`;
+  })
+    .format(value)
+    // Normalise toute espace (fine insécable U+202F, NBSP, normale) en NBSP.
+    .replace(/[   ]/g, NBSP);
+  return `${n}${NBSP}${SYMBOLE[devise]}`;
+}
+
+/** Raccourci EUR (compat) — "12 480 €" ou "1 234,56 €" avec centimes. */
+export function formatEuros(
+  value: number,
+  opts: { cents?: boolean } = {},
+): string {
+  return formatMontant(value, "EUR", opts);
 }
 
 /** "15/07/2026". Accepte une date ISO. */
@@ -27,7 +41,7 @@ export function formatDate(iso: string): string {
   }).format(d);
 }
 
-/** "15/07· 09:24" — pour la timeline. */
+/** "15/07 · 09:24" — pour la timeline. */
 export function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
