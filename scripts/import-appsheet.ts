@@ -18,7 +18,12 @@
  * reconnu bascule en `nouveau` avec une note d'import (rien n'est perdu).
  */
 import { readFileSync } from "node:fs";
-import { parseCsv, guessMapping, rowsToDrafts } from "../lib/leads/csv.ts";
+import {
+  parseCsv,
+  guessMapping,
+  rowsToDrafts,
+  type ImportField,
+} from "../lib/leads/csv.ts";
 import { scoreTemperature } from "../lib/leads/scoring.ts";
 import { nextRef } from "../lib/leads/ref.ts";
 import {
@@ -48,9 +53,60 @@ function sameContact(
   return Boolean(ae && be && ae === be);
 }
 
-const text = readFileSync(file, "utf8");
+/** Décode le fichier selon le BOM : UTF-16 LE/BE, UTF-8, ou heuristique. */
+function readTextSmart(path: string): string {
+  const buf = readFileSync(path);
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+    // UTF-16 LE + BOM — cas de l'export Facebook/Windows.
+    return buf.subarray(2).toString("utf16le");
+  }
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    // UTF-16 BE — on permute les octets puis on décode en LE.
+    const swapped = Buffer.alloc(buf.length - 2);
+    for (let i = 2; i + 1 < buf.length; i += 2) {
+      swapped[i - 2] = buf[i + 1];
+      swapped[i - 1] = buf[i];
+    }
+    return swapped.toString("utf16le");
+  }
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return buf.subarray(3).toString("utf8"); // UTF-8 + BOM
+  }
+  // Heuristique : beaucoup d'octets NUL en position impaire -> UTF-16 LE sans BOM.
+  let nul = 0;
+  const scan = Math.min(buf.length, 2000);
+  for (let i = 1; i < scan; i += 2) if (buf[i] === 0) nul++;
+  if (nul > scan / 8) return buf.toString("utf16le");
+  return buf.toString("utf8");
+}
+
+const text = readTextSmart(file);
+console.log("Encodage détecté :", text.length ? "OK" : "vide", `(${text.length} caractères)`);
 const { headers, rows } = parseCsv(text);
 const mapping = guessMapping(headers);
+
+// Colonnes de qualification numérotées 0→11 de l'export Facebook/AppSheet
+// (mapping positionnel spécifié par le cahier — n'écrase pas une colonne déjà
+// mappée par son nom).
+const APPSHEET_POSITIONAL: Record<string, ImportField> = {
+  "0": "reseau",
+  "1": "puissance_compteur_kva",
+  "2": "type_logement",
+  "3": "occupation",
+  "4": "emplacement",
+  "5": "fixation",
+  "6": "distance_tableau",
+  "7": "obstacles",
+  "8": "type_vehicule",
+  "9": "pv_projet",
+  "10": "budget",
+  "11": "delai",
+};
+for (const h of headers) {
+  const f = APPSHEET_POSITIONAL[h.trim()];
+  if (f && !mapping[f]) mapping[f] = h;
+}
+
 const drafts = rowsToDrafts(headers, rows, mapping);
 
 const seen: typeof drafts = [];
