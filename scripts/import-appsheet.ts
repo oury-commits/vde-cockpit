@@ -4,19 +4,28 @@
  * DRY-RUN par défaut : lit le CSV, mappe les colonnes, détecte doublons et
  * anomalies, et affiche un rapport SANS rien écrire.
  *
- *   node --experimental-strip-types scripts/import-appsheet.ts <export.csv>
+ *   NODE_OPTIONS="--use-system-ca" node --experimental-strip-types \
+ *     scripts/import-appsheet.ts <export.csv>
  *
- * Import réel (après validation d'Oury) :
- *
- *   node --experimental-strip-types scripts/import-appsheet.ts <export.csv> --commit
- *
+ * Import réel (après validation d'Oury) : ajouter --commit.
  * Requiert alors NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (.env.local).
- * La ref FB-XXX d'origine est conservée si présente ; sinon attribuée à la suite.
+ *
+ * `--use-system-ca` est nécessaire sur ce poste (certificat d'entreprise),
+ * sinon Node échoue en UNABLE_TO_VERIFY_LEAF_SIGNATURE.
+ *
+ * Garanties : la ref FB-XXX d'origine est CONSERVÉE quand elle est exploitable
+ * et libre ; le statut d'origine est mappé sur le pipeline, et tout statut non
+ * reconnu bascule en `nouveau` avec une note d'import (rien n'est perdu).
  */
 import { readFileSync } from "node:fs";
 import { parseCsv, guessMapping, rowsToDrafts } from "../lib/leads/csv.ts";
 import { scoreTemperature } from "../lib/leads/scoring.ts";
 import { nextRef } from "../lib/leads/ref.ts";
+import {
+  canonicalRef,
+  noteStatutInconnu,
+  parseStatutSource,
+} from "../lib/leads/appsheet.ts";
 
 const file = process.argv[2];
 const commit = process.argv.includes("--commit");
@@ -50,56 +59,106 @@ const duplicates: typeof drafts = [];
 const invalid: typeof drafts = [];
 
 for (const d of drafts) {
-  if (!d.telephone?.trim()) {
-    invalid.push(d);
-  } else if (seen.some((s) => sameContact(s, d))) {
-    duplicates.push(d);
-  } else {
+  if (!d.telephone?.trim()) invalid.push(d);
+  else if (seen.some((s) => sameContact(s, d))) duplicates.push(d);
+  else {
     seen.push(d);
     valid.push(d);
   }
 }
 
-console.log("── Import AppSheet — rapport ──");
-console.log("Fichier          :", file);
-console.log("Colonnes         :", headers.length, `[${headers.join(", ")}]`);
-console.log("Mapping détecté  :");
+console.log("── Import AppSheet — rapport (DRY-RUN) ──");
+console.log("Fichier           :", file);
+console.log("Colonnes          :", headers.length, `[${headers.join(", ")}]`);
+console.log("Mapping détecté   :");
 for (const [field, col] of Object.entries(mapping)) {
   console.log(`   ${field.padEnd(20)} ← ${col}`);
 }
-console.log("Lignes lues      :", drafts.length);
-console.log("Valides          :", valid.length);
+const nonMappes = headers.filter((h) => !Object.values(mapping).includes(h));
+if (nonMappes.length) console.log("Colonnes ignorées :", nonMappes.join(", "));
+
+console.log("");
+console.log("Lignes lues       :", drafts.length);
+console.log("Valides           :", valid.length);
 console.log("Doublons (fichier):", duplicates.length);
-console.log("Sans téléphone   :", invalid.length);
+console.log("Sans téléphone    :", invalid.length);
+
+// ── Refs d'origine ──────────────────────────────────────────────────────────
+let refOk = 0;
+let refAssignees = 0;
+for (const d of valid) {
+  if (canonicalRef(d.ref)) refOk++;
+  else refAssignees++;
+}
+console.log("");
+console.log("Refs d'origine    :", `${refOk} conservées · ${refAssignees} à attribuer`);
+if (!mapping.ref) {
+  console.log("  [!] Aucune colonne de ref détectée → toutes les refs seront réattribuées.");
+}
+
+// ── Statuts ─────────────────────────────────────────────────────────────────
+const statutCounts = new Map<string, { cible: string; n: number }>();
+for (const d of valid) {
+  const raw = (d.statut_source ?? "").trim() || "(vide)";
+  const mapped = parseStatutSource(d.statut_source);
+  const cible = mapped ?? "nouveau (NON RECONNU)";
+  const cur = statutCounts.get(raw) ?? { cible, n: 0 };
+  cur.n++;
+  statutCounts.set(raw, cur);
+}
+console.log("Statuts d'origine :");
+if (!mapping.statut_source) {
+  console.log("  [!] Aucune colonne de statut détectée → tout sera importé en « nouveau ».");
+} else {
+  for (const [raw, { cible, n }] of [...statutCounts].sort((a, b) => b[1].n - a[1].n)) {
+    const flag = cible.includes("NON RECONNU") ? "  [!]" : "     ";
+    console.log(`${flag} ${String(n).padStart(4)} × « ${raw} » → ${cible}`);
+  }
+}
 
 if (!commit) {
-  console.log("\nDRY-RUN — aucune écriture. Ajoute --commit pour importer.");
+  console.log("");
+  console.log("DRY-RUN — aucune écriture. Ajouter --commit pour importer.");
   process.exit(0);
 }
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// ── Import réel ─────────────────────────────────────────────────────────────
+const env = (() => {
+  try {
+    return readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+  } catch {
+    return "";
+  }
+})();
+const pick = (k: string) =>
+  process.env[k] ?? new RegExp(`^${k}=(.+)$`, "m").exec(env)?.[1]?.trim();
+const url = pick("NEXT_PUBLIC_SUPABASE_URL");
+const key = pick("SUPABASE_SERVICE_ROLE_KEY");
 if (!url || !key) {
-  console.error(
-    "\n--commit requiert NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (.env.local).",
-  );
+  console.error("\n--commit requiert NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.");
   process.exit(1);
 }
 
-const { createClient } = await import("@supabase/supabase-js");
-const sb = createClient(url, key);
-
-const { data: existing, error: readErr } = await sb.from("leads").select("id");
-if (readErr) {
-  console.error("Lecture des ids existants échouée :", readErr.message);
+const h = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+const res = await fetch(`${url}/rest/v1/leads?select=id`, { headers: h });
+if (!res.ok) {
+  console.error("Lecture des ids existants échouée :", res.status, await res.text());
   process.exit(1);
 }
-const ids = (existing ?? []).map((r: { id: string }) => r.id);
+const ids: string[] = ((await res.json()) as { id: string }[]).map((r) => r.id);
+const used = new Set(ids);
 const now = new Date().toISOString();
 
 const toInsert = valid.map((d) => {
-  const id = nextRef(ids);
-  ids.push(id);
+  const canon = canonicalRef(d.ref);
+  const id = canon && !used.has(canon) ? canon : nextRef([...used]);
+  used.add(id);
+
+  const mapped = parseStatutSource(d.statut_source);
+  const notes = [d.notes, !mapped && d.statut_source ? noteStatutInconnu(d.statut_source) : ""]
+    .filter(Boolean)
+    .join("\n");
+
   return {
     id,
     entite: "FR" as const,
@@ -118,17 +177,21 @@ const toInsert = valid.map((d) => {
     eligible_advenir: d.eligible_advenir ?? null,
     montant_estime: d.montant_estime ?? null,
     temperature: scoreTemperature(d),
-    statut: "nouveau" as const,
-    notes: d.notes ?? null,
+    statut: mapped ?? ("nouveau" as const),
+    notes: notes || null,
     created_at: now,
     updated_at: now,
     statut_change_at: now,
   };
 });
 
-const { error: insErr } = await sb.from("leads").insert(toInsert);
-if (insErr) {
-  console.error("Import échoué :", insErr.message);
+const ins = await fetch(`${url}/rest/v1/leads`, {
+  method: "POST",
+  headers: h,
+  body: JSON.stringify(toInsert),
+});
+if (!ins.ok) {
+  console.error("Import échoué :", ins.status, (await ins.text()).slice(0, 300));
   process.exit(1);
 }
 console.log(`\nOK — ${toInsert.length} leads importés dans Supabase.`);

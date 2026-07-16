@@ -22,6 +22,11 @@ import type {
 } from "@/lib/types";
 import type { LeadDraft } from "@/lib/leads/csv";
 import { nextRef } from "@/lib/leads/ref";
+import {
+  canonicalRef,
+  noteStatutInconnu,
+  parseStatutSource,
+} from "@/lib/leads/appsheet";
 import { scoreTemperature } from "@/lib/leads/scoring";
 import { buildDevis, buildEcheancier, nextDevisRef } from "@/lib/leads/devis";
 import { isSameContact } from "@/lib/leads/filters";
@@ -185,9 +190,22 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
           report.duplicates.push({ draft, existing: dup });
           continue;
         }
-        const id = nextRef(ids);
+        // Conserve la ref d'origine (FB-XXX) si elle est exploitable et libre.
+        const canon = canonicalRef(draft.ref);
+        const id = canon && !ids.includes(canon) ? canon : nextRef(ids);
         ids = [...ids, id];
-        const lead = makeLead({ ...draft, canal: "import" }, id);
+
+        // Statut d'origine mappé sur le pipeline ; inconnu → nouveau + note.
+        const mapped = parseStatutSource(draft.statut_source);
+        const lead = makeLead(
+          { ...draft, canal: "import", statut: mapped ?? undefined },
+          id,
+        );
+        if (!mapped && draft.statut_source) {
+          lead.notes = [lead.notes, noteStatutInconnu(draft.statut_source)]
+            .filter(Boolean)
+            .join("\n");
+        }
         report.imported.push(lead);
         existing.push(lead);
         newActivites.push({

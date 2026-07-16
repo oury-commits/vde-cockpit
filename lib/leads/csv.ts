@@ -2,6 +2,10 @@ import type { Puissance, TypeLogement } from "@/lib/types";
 
 /** Brouillon de lead issu d'une ligne CSV (avant insertion dans le store). */
 export interface LeadDraft {
+  /** Ref d'origine (FB-XXX) à conserver lors d'une migration AppSheet. */
+  ref?: string;
+  /** Statut d'origine, brut. Mappé sur le pipeline via lib/leads/appsheet.ts. */
+  statut_source?: string;
   nom: string;
   telephone: string;
   email?: string;
@@ -25,8 +29,10 @@ export const IMPORT_FIELDS: {
   label: string;
   required?: boolean;
 }[] = [
+  { key: "ref", label: "Ref d'origine (FB-XXX)" },
   { key: "nom", label: "Nom", required: true },
   { key: "telephone", label: "Téléphone", required: true },
+  { key: "statut_source", label: "Statut d'origine" },
   { key: "email", label: "Email" },
   { key: "code_postal", label: "Code postal" },
   { key: "ville", label: "Ville" },
@@ -129,6 +135,8 @@ function normalize(s: string): string {
 }
 
 const SYNONYMS: Record<ImportField, string[]> = {
+  ref: ["ref", "id", "identifiant", "reference", "lead id", "code", "n lead"],
+  statut_source: ["statut", "status", "etape", "stage", "etat", "phase"],
   nom: ["nom", "name", "full name", "fullname", "client", "contact", "prenom nom"],
   telephone: ["telephone", "tel", "phone", "mobile", "numero", "phone number"],
   email: ["email", "e mail", "mail", "courriel"],
@@ -231,6 +239,10 @@ export function rowsToDrafts(
       nom: get("nom") || "—",
       telephone: get("telephone"),
     };
+    const ref = get("ref");
+    if (ref) draft.ref = ref;
+    const statutSource = get("statut_source");
+    if (statutSource) draft.statut_source = statutSource;
     const email = get("email");
     if (email) draft.email = email;
     const cp = get("code_postal");
