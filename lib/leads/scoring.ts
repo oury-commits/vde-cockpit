@@ -4,7 +4,7 @@ import type { Lead, Temperature } from "@/lib/types";
  * Scoring température automatique (§6.1) — heuristique MVP.
  * Basée sur les signaux disponibles à l'ingestion : éligibilité ADVENIR,
  * type de logement (faisabilité), puissance (taille de projet ≈ budget) et
- * joignabilité (téléphone + email). Le commercial attaque les 🔴 d'abord.
+ * joignabilité (téléphone + email). Le commercial attaque les leads chauds d'abord.
  *
  * TODO: brancher données réelles — pondérations à affiner avec le délai projet
  * réel (champ non fourni par l'export Facebook actuel).

@@ -2,7 +2,7 @@
 --  0002_dev_open_access.sql — TEMPORAIRE · DÉVELOPPEMENT LOCAL UNIQUEMENT
 -- ============================================================================
 --
---  ⚠️  CETTE MIGRATION OUVRE LA BASE AU RÔLE `anon`.
+--  ATTENTION : CETTE MIGRATION OUVRE LA BASE AU RÔLE `anon`.
 --
 --  Elle autorise la lecture ET l'écriture sur `leads` et `activites` SANS
 --  authentification. La clé publiable étant publique par design (elle est

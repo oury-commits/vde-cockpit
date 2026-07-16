@@ -47,7 +47,8 @@ interface TemperatureMeta {
   label: string;
   order: number;
   /** Pastille de couleur (token). Froid = `muted` : aucun token bleu au design
-   *  system, et zéro emoji — la cohérence 🔴🟠🔵 passe par 3 tokens distincts. */
+   *  system, et zéro emoji — la cohérence chaud/tiède/froid passe par 3 tokens
+   *  distincts (alert / gold / muted). */
   dot: string;
   text: string;
 }

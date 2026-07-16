@@ -4,7 +4,7 @@
 
 ---
 
-## ⛔ AVANT MISE EN LIGNE — checklist obligatoire
+## AVANT MISE EN LIGNE — checklist obligatoire
 
 Le projet peut tourner en **mode ouvert (dev)** : authentification désactivée et
 base ouverte au rôle `anon`. **Cet état est réservé au développement local.**
