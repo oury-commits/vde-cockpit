@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Lead } from "@/lib/types";
 import type { PeriodGroup } from "@/lib/leads/filters";
 import { relanceState, leadMontant } from "@/lib/leads/filters";
@@ -29,17 +30,23 @@ function LeadRow({
 }) {
   const montant = leadMontant(lead);
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(lead.id)}
-      className="flex w-full items-center gap-3 border-b border-line px-2 py-2.5 text-left transition-colors last:border-0 hover:bg-cream/60"
-    >
+    <div className="relative flex w-full items-center gap-3 border-b border-line px-2 py-2.5 text-left transition-colors last:border-0 hover:bg-cream/60">
+      {/* Clic sur la ligne = aperçu (drawer) ; clic sur le nom = fiche complète. */}
+      <button
+        type="button"
+        aria-label={`Aperçu de ${lead.nom}`}
+        onClick={() => onSelect(lead.id)}
+        className="absolute inset-0"
+      />
       <TemperatureDot temperature={lead.temperature} />
       <span className="w-16 shrink-0 font-mono text-xs text-muted">{lead.id}</span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-ink">
+        <Link
+          href={`/leads/${lead.id}`}
+          className="relative z-10 block w-fit max-w-full truncate text-sm font-medium text-ink hover:text-brand hover:underline"
+        >
           {lead.nom}
-        </span>
+        </Link>
         <span className="block truncate text-xs text-muted">
           {[lead.code_postal, lead.ville].filter(Boolean).join(" ") || "—"}
           {lead.devis ? (
@@ -56,7 +63,7 @@ function LeadRow({
       <span className="hidden w-40 shrink-0 text-right text-xs lg:block">
         <RelanceHint lead={lead} now={now} />
       </span>
-    </button>
+    </div>
   );
 }
 

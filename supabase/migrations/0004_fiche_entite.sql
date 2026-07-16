@@ -22,6 +22,7 @@ alter table leads
   add column fixation              fixation,
   add column obstacles             text,
   add column budget                text,       -- réponse brute du formulaire
+  add column delai                 text,       -- délai projet (réponse brute)
   add column pv_projet             pv_projet,   -- panneaux solaires (cross-sell)
   add column pv_autre              text;        -- précision si pv_projet = 'autre'
 

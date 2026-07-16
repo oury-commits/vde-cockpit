@@ -1,7 +1,12 @@
 import type {
   Canal,
+  Emplacement,
+  Fixation,
   MotifPerte,
+  Occupation,
   Puissance,
+  PvProjet,
+  Reseau,
   Statut,
   Temperature,
   TypeLogement,
@@ -82,6 +87,34 @@ export const MOTIF_PERTE_LABEL: Record<MotifPerte, string> = {
   delai: "Délai",
   injoignable: "Injoignable",
   concurrent: "Concurrent",
+  autre: "Autre",
+};
+
+export const RESEAU_LABEL: Record<Reseau, string> = {
+  mono: "Monophasé",
+  tri: "Triphasé",
+};
+
+export const OCCUPATION_LABEL: Record<Occupation, string> = {
+  proprietaire: "Propriétaire",
+  locataire: "Locataire",
+};
+
+export const EMPLACEMENT_LABEL: Record<Emplacement, string> = {
+  interieur: "Intérieur",
+  exterieur: "Extérieur",
+};
+
+export const FIXATION_LABEL: Record<Fixation, string> = {
+  murale: "Murale",
+  pied: "Sur pied",
+};
+
+export const PV_PROJET_LABEL: Record<PvProjet, string> = {
+  aucun: "Aucun",
+  "3kwc": "3 kWc",
+  "6kwc": "6 kWc",
+  "9kwc": "9 kWc",
   autre: "Autre",
 };
 

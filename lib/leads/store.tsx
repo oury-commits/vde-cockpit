@@ -56,6 +56,7 @@ interface StoreValue {
   addLead: (input: LeadInput) => { lead: Lead | null; duplicate?: Lead };
   importDrafts: (drafts: LeadDraft[]) => ImportReport;
   updateLead: (id: string, patch: Partial<Lead>) => void;
+  deleteLead: (id: string) => void;
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   generateDevis: (leadId: string) => Devis | null;
@@ -237,6 +238,12 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const deleteLead = useCallback<StoreValue["deleteLead"]>((id) => {
+    setLeads((prev) => prev.filter((l) => l.id !== id));
+    setActivites((prev) => prev.filter((a) => a.lead_id !== id));
+    void getRepository().deleteLead(id);
+  }, []);
+
   const changeStatut = useCallback<StoreValue["changeStatut"]>(
     (id, statut, motif) => {
       const now = new Date().toISOString();
@@ -386,6 +393,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       addLead,
       importDrafts,
       updateLead,
+      deleteLead,
       changeStatut,
       addActivite: pushActivite,
       generateDevis,
@@ -402,6 +410,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       addLead,
       importDrafts,
       updateLead,
+      deleteLead,
       changeStatut,
       pushActivite,
       generateDevis,

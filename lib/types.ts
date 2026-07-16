@@ -150,6 +150,7 @@ export interface Lead {
   fixation?: Fixation | null; // 5
   obstacles?: string | null; // 7
   budget?: string | null; // 10 (réponse brute du formulaire)
+  delai?: string | null; // 11 (délai projet, réponse brute)
   pv_projet?: PvProjet | null; // 9 (panneaux solaires, enrichi en kWc)
   pv_autre?: string | null; // précision si pv_projet = "autre"
 
