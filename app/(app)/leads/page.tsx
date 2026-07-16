@@ -1,5 +1,10 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import type { Metadata } from "next";
+import { LeadsView } from "@/components/leads/LeadsView";
 
-export default function Page() {
-  return <ComingSoon />;
+export const metadata: Metadata = {
+  title: "Leads — VDE Cockpit",
+};
+
+export default function LeadsPage() {
+  return <LeadsView />;
 }
