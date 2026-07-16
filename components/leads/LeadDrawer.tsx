@@ -26,7 +26,8 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
 import { Timeline } from "@/components/leads/Timeline";
-import { formatDate, formatEuros } from "@/lib/format";
+import { formatDate, formatMontant } from "@/lib/format";
+import { entiteConfig } from "@/lib/entite/config";
 import { cn } from "@/lib/cn";
 
 const ECHEANCE_STATUT: Record<StatutEcheance, { label: string; cls: string }> = {
@@ -170,19 +171,23 @@ export function LeadDrawer({
             <div className="flex justify-between text-sm">
               <span className="text-muted">Total HT</span>
               <span className="font-mono text-ink">
-                {formatEuros(lead.devis.montant_ht, { cents: true })}
+                {formatMontant(lead.devis.montant_ht, lead.devis.devise, { cents: true })}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted">TVA 5,5 %</span>
+              <span className="text-muted">
+                {lead.devis.mode_tva === "fr_autoliquidation"
+                  ? "TVA — autoliq."
+                  : `TVA ${new Intl.NumberFormat("fr-FR").format(lead.devis.taux_tva * 100)} %`}
+              </span>
               <span className="font-mono text-ink">
-                {formatEuros(lead.devis.montant_tva, { cents: true })}
+                {formatMontant(lead.devis.montant_tva, lead.devis.devise, { cents: true })}
               </span>
             </div>
             <div className="flex justify-between text-sm font-semibold">
               <span className="text-ink">Total TTC</span>
               <span className="font-mono text-ink">
-                {formatEuros(lead.devis.montant_ttc, { cents: true })}
+                {formatMontant(lead.devis.montant_ttc, lead.devis.devise, { cents: true })}
               </span>
             </div>
           </div>
@@ -209,7 +214,7 @@ export function LeadDrawer({
                   <span className="text-sm text-ink">
                     <span className="font-mono">{e.pct} %</span> · {e.label}
                     <span className="ml-2 font-mono text-xs text-muted">
-                      {formatEuros(e.montant, { cents: true })}
+                      {formatMontant(e.montant, lead.devis!.devise, { cents: true })}
                     </span>
                   </span>
                   <Select
@@ -285,7 +290,7 @@ export function LeadDrawer({
         />
         <InfoRow
           label="Montant estimé"
-          value={lead.montant_estime != null ? formatEuros(lead.montant_estime) : null}
+          value={lead.montant_estime != null ? formatMontant(lead.montant_estime, entiteConfig(lead.entite).devise) : null}
         />
       </div>
 

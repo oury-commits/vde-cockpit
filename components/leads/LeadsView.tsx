@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Search, Upload, Users } from "lucide-react";
 import { useLeadsStore } from "@/lib/leads/store";
+import { useEntity } from "@/lib/entite/EntityProvider";
 import {
   EMPTY_FILTERS,
   SAVED_VIEWS,
@@ -32,6 +33,7 @@ function defaultDir(key: SortKey): SortDir {
 
 export function LeadsView() {
   const store = useLeadsStore();
+  const { active } = useEntity();
   const now = useMemo(() => new Date(), []);
 
   const [filters, setFilters] = useState<LeadFilters>(EMPTY_FILTERS);
@@ -44,7 +46,14 @@ export function LeadsView() {
   const [importOpen, setImportOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
 
-  const { leads } = store;
+  // Filtre entité : ne jamais mélanger FR et MA (sauf « Tous »).
+  const leads = useMemo(
+    () =>
+      active === "ALL"
+        ? store.leads
+        : store.leads.filter((l) => l.entite === active),
+    [store.leads, active],
+  );
 
   const searchBase = useMemo(
     () => filterLeads(leads, { ...EMPTY_FILTERS, search: filters.search }, now),
@@ -141,7 +150,7 @@ export function LeadsView() {
         />
       </div>
 
-      <KpiRow leads={leads} now={now} />
+      <KpiRow leads={leads} now={now} active={active} />
 
       <FilterBar
         leads={leads}

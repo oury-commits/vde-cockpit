@@ -1,10 +1,19 @@
-import type { Lead } from "@/lib/types";
+import type { Devise, Lead } from "@/lib/types";
+import type { ActiveEntite } from "@/lib/entite/EntityProvider";
 import { StatCard } from "@/components/ui/StatCard";
-import { formatEuros } from "@/lib/format";
+import { formatMontant } from "@/lib/format";
 import { relanceState } from "@/lib/leads/filters";
 
-/** Bandeau KPI compact — valeurs dérivées du store (aucune donnée inventée). */
-export function KpiRow({ leads, now }: { leads: Lead[]; now: Date }) {
+/** Bandeau KPI compact — valeurs dérivées du store, dans la devise de l'entité. */
+export function KpiRow({
+  leads,
+  now,
+  active,
+}: {
+  leads: Lead[];
+  now: Date;
+  active: ActiveEntite;
+}) {
   const actifs = leads.filter((l) => l.statut !== "perdu").length;
 
   const aRelancer = leads.filter((l) => {
@@ -25,6 +34,9 @@ export function KpiRow({ leads, now }: { leads: Lead[]; now: Date }) {
     }
   }
 
+  // En "Tous", les montants mêlent EUR et MAD → on ne les additionne pas.
+  const devise: Devise | null = active === "ALL" ? null : active === "MA" ? "MAD" : "EUR";
+
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <StatCard label="Leads actifs" value={String(actifs)} hint="hors perdus" />
@@ -41,8 +53,8 @@ export function KpiRow({ leads, now }: { leads: Lead[]; now: Date }) {
       />
       <StatCard
         label="Encaissé"
-        value={formatEuros(encaisse)}
-        hint={`sur ${formatEuros(attendu)} attendus`}
+        value={devise ? formatMontant(encaisse, devise) : "—"}
+        hint={devise ? `sur ${formatMontant(attendu, devise)} attendus` : "multi-devise"}
         monoHint
       />
     </div>

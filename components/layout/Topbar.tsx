@@ -1,22 +1,6 @@
 import { Bell, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-
-function EntitySwitcher() {
-  return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-cream p-[3px]">
-      <span className="rounded-md bg-brand px-3 py-1 text-xs font-semibold tracking-[0.04em] text-cream">
-        FR · EUR
-      </span>
-      <span
-        title="Entité Maroc — bientôt active"
-        aria-disabled="true"
-        className="cursor-not-allowed rounded-md px-3 py-1 text-xs font-semibold tracking-[0.04em] text-muted/60"
-      >
-        MA · MAD
-      </span>
-    </div>
-  );
-}
+import { EntitySwitcher } from "@/components/layout/EntitySwitcher";
 
 export function Topbar() {
   return (

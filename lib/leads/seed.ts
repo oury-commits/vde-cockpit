@@ -177,6 +177,47 @@ export function buildSeed(now: Date): Lead[] {
       prochaine_action: "Recontacter — email manquant",
       date_relance: iso(now, 3),
     }),
+
+    // ── VDE Maroc (entité MA, devise DH) ──
+    base(now, 11, 2, {
+      entite: "MA",
+      nom: "Client Démo MA 1",
+      telephone: "+212 6 11 22 33 44",
+      ville: "Casablanca",
+      code_postal: "20000",
+      source_campagne: "Démo — Borne villa MA",
+      reseau: "tri",
+      puissance_compteur_kva: 15,
+      type_logement: "maison",
+      occupation: "proprietaire",
+      emplacement: "exterieur",
+      fixation: "murale",
+      distance_tableau: 8,
+      puissance_souhaitee: "22",
+      eligible_advenir: false,
+      montant_estime: 18000,
+      temperature: "chaud",
+      statut: "signe",
+      assigne_a: "Oury",
+    }),
+    base(now, 12, 5, {
+      entite: "MA",
+      nom: "Client Démo MA 2",
+      telephone: "+212 6 55 66 77 88",
+      ville: "Rabat",
+      code_postal: "10000",
+      source_campagne: "Démo — Borne MA",
+      reseau: "mono",
+      puissance_compteur_kva: 8,
+      type_logement: "appartement",
+      occupation: "locataire",
+      distance_tableau: 6,
+      puissance_souhaitee: "7.4",
+      temperature: "tiede",
+      statut: "devis_envoye",
+      prochaine_action: "Relancer signature",
+      date_relance: iso(now, -1),
+    }),
   ];
 
   // Devis + échéancier sur les leads assez avancés.
@@ -184,6 +225,8 @@ export function buildSeed(now: Date): Lead[] {
   attachDevis(leads, "FB-005", now, 10, "signe");
   attachDevis(leads, "FB-006", now, 14, "signe");
   attachDevis(leads, "FB-007", now, 30, "signe", true);
+  attachDevis(leads, "FB-011", now, 2, "signe"); // MA (VDE-MA-2026)
+  attachDevis(leads, "FB-012", now, 5, "envoye"); // MA
 
   return leads;
 }
@@ -199,7 +242,8 @@ function attachDevis(
   const lead = leads.find((l) => l.id === id);
   if (!lead) return;
   const num = id.replace("FB-", "");
-  const devis = buildDevis(lead, `VDE-2026-${num}`, iso(now, daysAgo), "FR");
+  const prefix = lead.entite === "MA" ? "VDE-MA-2026" : "VDE-2026";
+  const devis = buildDevis(lead, `${prefix}-${num}`, iso(now, daysAgo), lead.entite);
   devis.statut = statut;
   lead.devis = devis;
   if (statut === "signe") {

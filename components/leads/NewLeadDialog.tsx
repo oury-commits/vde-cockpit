@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Lead, Puissance, TypeLogement } from "@/lib/types";
 import { useLeadsStore, type LeadInput } from "@/lib/leads/store";
+import { useEntity } from "@/lib/entite/EntityProvider";
+import { ENTITE_LABEL } from "@/lib/entite/config";
 import {
   MEMBRES,
   PUISSANCE_LABEL,
@@ -24,6 +26,7 @@ export function NewLeadDialog({
   onCreated: (lead: Lead) => void;
 }) {
   const store = useLeadsStore();
+  const { entiteForCreate } = useEntity();
   const [form, setForm] = useState<LeadInput>(EMPTY);
   const [duplicate, setDuplicate] = useState<Lead | null>(null);
 
@@ -38,7 +41,10 @@ export function NewLeadDialog({
 
   const submit = () => {
     if (!form.nom.trim() || !form.telephone.trim()) return;
-    const { lead, duplicate: dup } = store.addLead(form);
+    const { lead, duplicate: dup } = store.addLead({
+      ...form,
+      entite: entiteForCreate,
+    });
     if (!lead) {
       setDuplicate(dup ?? null);
       return;
@@ -52,7 +58,7 @@ export function NewLeadDialog({
       open={open}
       onClose={close}
       title="Nouveau lead"
-      description="Saisie manuelle — ref FB-XXX attribuée automatiquement."
+      description={`Entité ${ENTITE_LABEL[entiteForCreate]} — ref FB-XXX attribuée automatiquement.`}
       size="xl"
       footer={
         <>

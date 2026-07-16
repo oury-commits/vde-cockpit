@@ -18,11 +18,12 @@ import {
   Sun,
   Trash2,
 } from "lucide-react";
-import type { Lead, Statut, StatutEcheance } from "@/lib/types";
+import type { Lead, ModeTva, Statut } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
 import { computeFaisabilite, FAISABILITE_META } from "@/lib/leads/faisabilite";
 import { computeEstimation } from "@/lib/leads/estimation";
 import { generateDevisPdf } from "@/lib/leads/devis";
+import { generateFacturePdf } from "@/lib/leads/facture";
 import { entiteConfig } from "@/lib/entite/config";
 import {
   CANAL_LABEL,
@@ -126,6 +127,7 @@ export function LeadFiche() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [note, setNote] = useState("");
+  const [tvaMode, setTvaMode] = useState<ModeTva | "">("");
 
   const faisabilite = useMemo(
     () => (lead ? computeFaisabilite(lead) : null),
@@ -157,8 +159,12 @@ export function LeadFiche() {
   const tel = lead.telephone.replace(/\s/g, "");
 
   const onGenerateDevis = () => {
-    const devis = store.generateDevis(lead.id);
+    const devis = store.generateDevis(lead.id, tvaMode || undefined);
     if (devis) generateDevisPdf(lead, devis);
+  };
+  const onConvertFacture = () => {
+    const facture = store.generateFacture(lead.id);
+    if (facture) generateFacturePdf(lead, facture);
   };
   const addNote = () => {
     const t = note.trim();
@@ -235,15 +241,11 @@ export function LeadFiche() {
           <Button variant="secondary" size="sm" icon={Pencil} onClick={() => setEditOpen(true)}>
             Modifier
           </Button>
-          <button
-            type="button"
-            disabled
-            title="Disponible à l'increment 3 (facture)"
-            className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-muted opacity-50"
-          >
-            <Receipt className="size-4" strokeWidth={1.75} />
-            Convertir en facture
-          </button>
+          {lead.devis?.statut === "signe" && !lead.facture ? (
+            <Button variant="secondary" size="sm" icon={Receipt} onClick={onConvertFacture}>
+              Convertir en facture
+            </Button>
+          ) : null}
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
@@ -387,13 +389,57 @@ export function LeadFiche() {
               </div>
             </div>
           ) : (
-            <Button icon={FileText} onClick={onGenerateDevis} className="w-full">
-              Générer le devis (1 clic)
-            </Button>
+            <div className="rounded-xl border border-line p-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-semibold text-muted">
+                  TVA ({cfg.nom} — {devise === "MAD" ? "DH" : "€"})
+                </span>
+                <Select
+                  value={tvaMode || cfg.tvaDefaut}
+                  onChange={(e) => setTvaMode(e.target.value as ModeTva)}
+                  disabled={cfg.tvaOptions.length <= 1}
+                >
+                  {cfg.tvaOptions.map((o) => (
+                    <option key={o.mode} value={o.mode}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <Button icon={FileText} onClick={onGenerateDevis} className="mt-2 w-full">
+                Générer le devis (1 clic)
+              </Button>
+            </div>
           )}
-          <p className="mt-2 text-[11px] text-muted">
-            Conversion devis → facture : increment 3.
-          </p>
+
+          {/* Facture */}
+          {lead.facture ? (
+            <div className="mt-3 rounded-xl border border-brand/30 bg-brand/5 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm font-semibold text-brand">{lead.facture.ref}</span>
+                <span className="text-xs text-muted">issue de {lead.facture.devis_ref}</span>
+              </div>
+              <div className="mt-2 flex justify-between border-t border-brand/15 pt-2 text-sm">
+                <span className="text-muted">Total TTC</span>
+                <span className="font-mono font-semibold text-ink">
+                  {formatMontant(lead.facture.montant_ttc, lead.facture.devise, { cents: true })}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Download}
+                className="mt-3"
+                onClick={() => generateFacturePdf(lead, lead.facture!)}
+              >
+                Voir la facture
+              </Button>
+            </div>
+          ) : lead.devis?.statut === "signe" ? (
+            <Button variant="secondary" icon={Receipt} onClick={onConvertFacture} className="mt-3 w-full">
+              Convertir en facture
+            </Button>
+          ) : null}
         </Card>
 
         {/* Historique */}

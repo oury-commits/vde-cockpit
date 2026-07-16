@@ -5,7 +5,8 @@ import type { Lead } from "@/lib/types";
 import type { PeriodGroup } from "@/lib/leads/filters";
 import { relanceState, leadMontant } from "@/lib/leads/filters";
 import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
-import { anciennete, formatEuros } from "@/lib/format";
+import { entiteConfig } from "@/lib/entite/config";
+import { anciennete, formatMontant } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 function RelanceHint({ lead, now }: { lead: Lead; now: Date }) {
@@ -58,7 +59,7 @@ function LeadRow({
         <StatutBadge statut={lead.statut} />
       </span>
       <span className="hidden w-24 shrink-0 text-right font-mono text-sm text-ink md:block">
-        {montant > 0 ? formatEuros(montant) : "—"}
+        {montant > 0 ? formatMontant(montant, entiteConfig(lead.entite).devise) : "—"}
       </span>
       <span className="hidden w-40 shrink-0 text-right text-xs lg:block">
         <RelanceHint lead={lead} now={now} />

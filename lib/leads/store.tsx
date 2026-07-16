@@ -15,7 +15,9 @@ import type {
   Canal,
   Devis,
   Entite,
+  Facture,
   Lead,
+  ModeTva,
   MotifPerte,
   Statut,
   StatutEcheance,
@@ -29,6 +31,7 @@ import {
 } from "@/lib/leads/appsheet";
 import { scoreTemperature } from "@/lib/leads/scoring";
 import { buildDevis, buildEcheancier, nextDevisRef } from "@/lib/leads/devis";
+import { buildFacture, nextFactureRef } from "@/lib/leads/facture";
 import { isSameContact } from "@/lib/leads/filters";
 import { STATUT_META } from "@/lib/leads/meta";
 import { uid } from "@/lib/uid";
@@ -59,9 +62,10 @@ interface StoreValue {
   deleteLead: (id: string) => void;
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
-  generateDevis: (leadId: string) => Devis | null;
+  generateDevis: (leadId: string, mode?: ModeTva) => Devis | null;
   markDevisEnvoye: (leadId: string) => void;
   signDevis: (leadId: string) => void;
+  generateFacture: (leadId: string) => Facture | null;
   setEcheanceStatut: (
     leadId: string,
     index: number,
@@ -272,14 +276,14 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const generateDevis = useCallback<StoreValue["generateDevis"]>(
-    (leadId) => {
+    (leadId, mode) => {
       const lead = leads.find((l) => l.id === leadId);
       if (!lead) return null;
       const existingRefs = leads
         .map((l) => l.devis?.ref)
         .filter((r): r is string => Boolean(r));
       const ref = nextDevisRef(existingRefs, lead.entite);
-      const devis = buildDevis(lead, ref, new Date().toISOString(), lead.entite);
+      const devis = buildDevis(lead, ref, new Date().toISOString(), lead.entite, mode);
       const now = new Date().toISOString();
       setLeads((prev) =>
         prev.map((l) =>
@@ -341,6 +345,29 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [pushActivite],
   );
 
+  const generateFacture = useCallback<StoreValue["generateFacture"]>(
+    (leadId) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead || !lead.devis || lead.devis.statut !== "signe") return null;
+      if (lead.facture) return lead.facture; // déjà émise (numérotation unique)
+      const existingRefs = leads
+        .map((l) => l.facture?.ref)
+        .filter((r): r is string => Boolean(r));
+      const ref = nextFactureRef(existingRefs, lead.entite);
+      const facture = buildFacture(lead.devis, ref, new Date().toISOString());
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, facture, updated_at: new Date().toISOString() }
+            : l,
+        ),
+      );
+      pushActivite(leadId, "devis", `Facture ${ref} générée depuis ${lead.devis.ref}`);
+      return facture;
+    },
+    [leads, pushActivite],
+  );
+
   const setEcheanceStatut = useCallback<StoreValue["setEcheanceStatut"]>(
     (leadId, index, statut) => {
       setLeads((prev) =>
@@ -399,6 +426,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       generateDevis,
       markDevisEnvoye,
       signDevis,
+      generateFacture,
       setEcheanceStatut,
       resetDemo,
     }),
@@ -416,6 +444,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       generateDevis,
       markDevisEnvoye,
       signDevis,
+      generateFacture,
       setEcheanceStatut,
       resetDemo,
     ],

@@ -112,6 +112,21 @@ export interface Devis {
   statut: "brouillon" | "envoye" | "signe";
 }
 
+/** Facture — issue d'un devis signé. Numérotation continue par entité. */
+export interface Facture {
+  ref: string; // FAC-2026-XXX (FR) / FAC-MA-2026-XXX (MA)
+  entite: Entite;
+  devise: Devise;
+  date_creation: string;
+  devis_ref: string; // devis d'origine
+  lignes: LigneDevis[];
+  montant_ht: number;
+  mode_tva: ModeTva;
+  taux_tva: number;
+  montant_tva: number;
+  montant_ttc: number;
+}
+
 /** Entrée horodatée de la timeline. */
 export interface Activite {
   id: string;
@@ -159,6 +174,7 @@ export interface Lead {
   montant_estime?: number | null;
 
   devis?: Devis | null;
+  facture?: Facture | null;
   echeancier?: Echeance[] | null;
 
   prochaine_action?: string | null;
