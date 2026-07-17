@@ -14,6 +14,7 @@ import type {
   ActiviteType,
   Canal,
   Devis,
+  Echeance,
   Entite,
   Facture,
   Lead,
@@ -64,6 +65,8 @@ interface StoreValue {
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   generateDevis: (leadId: string, mode?: ModeTva) => Devis | null;
+  /** Rattache un devis construit par le générateur (wizard) à un lead. */
+  attachDevis: (leadId: string, devis: Devis, echeancier: Echeance[]) => void;
   markDevisEnvoye: (leadId: string) => void;
   signDevis: (leadId: string) => void;
   generateFacture: (leadId: string) => Facture | null;
@@ -326,6 +329,39 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [leads, pushActivite],
   );
 
+  const attachDevis = useCallback<StoreValue["attachDevis"]>(
+    (leadId, devis, echeancier) => {
+      const now = new Date().toISOString();
+      // Un brouillon n'avance pas le pipeline ; un devis validé (envoye) oui.
+      const advance = devis.statut === "envoye";
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                devis,
+                echeancier,
+                statut:
+                  advance &&
+                  (l.statut === "nouveau" ||
+                    l.statut === "a_qualifier" ||
+                    l.statut === "qualifie")
+                    ? "devis_envoye"
+                    : l.statut,
+                updated_at: now,
+              }
+            : l,
+        ),
+      );
+      pushActivite(
+        leadId,
+        "devis",
+        `Devis ${devis.ref} ${advance ? "validé" : "en brouillon"} (générateur)`,
+      );
+    },
+    [pushActivite],
+  );
+
   const markDevisEnvoye = useCallback<StoreValue["markDevisEnvoye"]>(
     (leadId) => {
       setLeads((prev) =>
@@ -446,6 +482,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       changeStatut,
       addActivite: pushActivite,
       generateDevis,
+      attachDevis,
       markDevisEnvoye,
       signDevis,
       generateFacture,
@@ -465,6 +502,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       changeStatut,
       pushActivite,
       generateDevis,
+      attachDevis,
       markDevisEnvoye,
       signDevis,
       generateFacture,
