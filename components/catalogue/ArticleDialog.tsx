@@ -13,7 +13,8 @@ import {
   CATEGORIE_ORDER,
   UNITE_LABEL,
 } from "@/lib/catalogue/meta";
-import { ENTITE_LABEL, entiteConfig } from "@/lib/entite/config";
+import { arrondiMad } from "@/lib/catalogue/prix";
+import { formatMontant } from "@/lib/format";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
@@ -23,7 +24,8 @@ interface FormState {
   designation: string;
   categorie: CategorieArticle;
   unite: Unite;
-  cout_ht: string;
+  cout_ht: string; // EUR (base)
+  cout_ma: string; // MAD override (vide = dérivé)
   a_confirmer: boolean;
   inclus_defaut: boolean;
   actif: boolean;
@@ -36,6 +38,7 @@ function initial(article: CatalogueArticle | null | undefined): FormState {
     categorie: article?.categorie ?? "borne",
     unite: article?.unite ?? "u",
     cout_ht: article ? String(article.cout_ht) : "",
+    cout_ma: article?.cout_ma != null ? String(article.cout_ma) : "",
     a_confirmer: article?.a_confirmer ?? false,
     inclus_defaut: article?.inclus_defaut ?? false,
     actif: article?.actif ?? true,
@@ -50,31 +53,34 @@ const LABEL = "mb-1 block text-xs font-medium text-muted";
 export function ArticleDialog({
   open,
   onClose,
-  entite,
+  priceEntite,
+  tauxMad,
   article,
 }: {
   open: boolean;
   onClose: () => void;
-  entite: Entite;
+  priceEntite: Entite;
+  tauxMad: number;
   article?: CatalogueArticle | null;
 }) {
   const store = useCatalogueStore();
   const [form, setForm] = useState<FormState>(() => initial(article));
 
-  // Réinitialise à l'ouverture (ou quand l'article édité change).
   useEffect(() => {
     if (open) setForm(initial(article));
   }, [open, article]);
 
   const isEdit = !!article;
-  const devise = entiteConfig(entite).devise;
-  const symbole = devise === "MAD" ? "DH" : "€";
-
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
   const cout = Number(form.cout_ht.replace(",", "."));
-  const valid = form.designation.trim().length > 0 && Number.isFinite(cout);
+  const coutMa = form.cout_ma.trim() === "" ? null : Number(form.cout_ma.replace(",", "."));
+  const valid =
+    form.designation.trim().length > 0 &&
+    Number.isFinite(cout) &&
+    (coutMa === null || Number.isFinite(coutMa));
+  const derivedMa = Number.isFinite(cout) ? arrondiMad(cout * tauxMad) : 0;
 
   const submit = () => {
     if (!valid) return;
@@ -83,6 +89,7 @@ export function ArticleDialog({
       categorie: form.categorie,
       unite: form.unite,
       cout_ht: cout,
+      cout_ma: coutMa,
       a_confirmer: form.a_confirmer,
       inclus_defaut: form.inclus_defaut,
       note: form.note.trim() || null,
@@ -90,7 +97,8 @@ export function ArticleDialog({
     if (article) {
       store.updateArticle(article.id, { ...payload, actif: form.actif });
     } else {
-      store.addArticle({ ...payload, entite, actif: true });
+      // Le catalogue a une base unique EUR (entité FR) ; le prix MA se dérive.
+      store.addArticle({ ...payload, entite: "FR", actif: true });
     }
     onClose();
   };
@@ -100,7 +108,7 @@ export function ArticleDialog({
       open={open}
       onClose={onClose}
       title={isEdit ? "Modifier l'article" : "Nouvel article"}
-      description={`Catalogue ${ENTITE_LABEL[entite]} · coût de revient HT en ${symbole}`}
+      description="Coût de base HT en € · prix Maroc dérivé du taux (surchargeable)"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -166,18 +174,38 @@ export function ArticleDialog({
           </div>
         </div>
 
-        <div>
-          <label className={LABEL} htmlFor="art-cout">
-            Coût de revient HT ({symbole})
-          </label>
-          <input
-            id="art-cout"
-            inputMode="decimal"
-            className={`${FIELD} font-mono`}
-            value={form.cout_ht}
-            onChange={(e) => set("cout_ht", e.target.value)}
-            placeholder="0"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={LABEL} htmlFor="art-cout">
+              Coût de revient HT (€)
+            </label>
+            <input
+              id="art-cout"
+              inputMode="decimal"
+              className={`${FIELD} font-mono`}
+              value={form.cout_ht}
+              onChange={(e) => set("cout_ht", e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className={LABEL} htmlFor="art-coutma">
+              Prix Maroc (DH){priceEntite === "MA" ? "" : " — optionnel"}
+            </label>
+            <input
+              id="art-coutma"
+              inputMode="decimal"
+              className={`${FIELD} font-mono`}
+              value={form.cout_ma}
+              onChange={(e) => set("cout_ma", e.target.value)}
+              placeholder={String(derivedMa)}
+            />
+            <span className="mt-1 block text-[11px] text-muted">
+              {form.cout_ma.trim() === ""
+                ? `Dérivé : ${formatMontant(derivedMa, "MAD")}`
+                : "Prix surchargé (ignore le taux)"}
+            </span>
+          </div>
         </div>
 
         <div>

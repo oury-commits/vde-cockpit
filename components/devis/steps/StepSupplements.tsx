@@ -13,12 +13,14 @@ import { formatMontant } from "@/lib/format";
 const SUP_CATEGORIES: CategorieArticle[] = ["consommable", "deplacement", "option"];
 
 export function StepSupplements() {
-  const { draft, articles, setSupplement } = useWizard();
+  const { draft, articles, coutOf, setSupplement } = useWizard();
   const devise = entiteConfig(draft.entite).devise;
 
   const qtyOf = (id: string) =>
     draft.supplements.find((s) => s.article_id === id)?.quantite ?? 0;
 
+  // En mode standard, les consommables « inclus par défaut » sont intégrés
+  // d'office (disjoncteur selon le réseau) : on ne les propose pas en manuel.
   const groups = useMemo(
     () =>
       SUP_CATEGORIES.map((cat) => ({
@@ -26,10 +28,11 @@ export function StepSupplements() {
         items: articles.filter(
           (a) =>
             a.categorie === cat &&
-            !/consuel|sch[ée]ma/i.test(a.designation),
+            !/consuel|sch[ée]ma/i.test(a.designation) &&
+            !(draft.mode === "standard" && a.inclus_defaut),
         ),
       })).filter((g) => g.items.length > 0),
-    [articles],
+    [articles, draft.mode],
   );
 
   return (
@@ -54,7 +57,7 @@ export function StepSupplements() {
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm text-ink">{a.designation}</span>
                     <span className="block font-mono text-xs text-muted">
-                      {formatMontant(a.cout_ht, devise, { cents: true })} / {UNITE_LABEL[a.unite]}
+                      {formatMontant(coutOf(a), devise, { cents: true })} / {UNITE_LABEL[a.unite]}
                     </span>
                   </span>
                   <QtyStepper

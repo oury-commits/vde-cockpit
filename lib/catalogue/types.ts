@@ -19,8 +19,13 @@ export interface CatalogueArticle {
   designation: string;
   categorie: CategorieArticle;
   unite: Unite;
-  /** Coût de revient HT, dans la devise de l'entité. */
+  /** Coût de revient HT de base, en EUR (catalogue France = source). */
   cout_ht: number;
+  /**
+   * Prix Maroc (MAD) surchargé. `null` → dérivé de `cout_ht × taux EUR→MAD`
+   * (taux paramétrable). Renseigné → prix figé pour l'entité MA.
+   */
+  cout_ma?: number | null;
   entite: Entite;
   actif: boolean;
   /** Prix marqué (?) dans le catalogue reconstitué — à valider par Oury. */

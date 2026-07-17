@@ -9,7 +9,7 @@ import { palierPose, suggestPoseId } from "@/lib/devis/builder";
 import type { Reseau } from "@/lib/types";
 
 export function StepConfig() {
-  const { draft, articles, patchConfig } = useWizard();
+  const { draft, articles, coutOf, patchConfig } = useWizard();
   const devise = entiteConfig(draft.entite).devise;
   const cfg = draft.config;
 
@@ -20,7 +20,7 @@ export function StepConfig() {
 
   const cout = (id: string | null) => {
     const a = articles.find((x) => x.id === id);
-    return a ? formatMontant(a.cout_ht, devise, { cents: true }) : null;
+    return a ? formatMontant(coutOf(a), devise, { cents: true }) : null;
   };
 
   // Réseau / distance re-suggèrent automatiquement la ligne de pose.

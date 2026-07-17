@@ -9,7 +9,6 @@ import type {
   DevisConfig,
   DevisDraft,
   DevisLigne,
-  DevisSupplement,
   ModeDevis,
 } from "@/lib/devis/types";
 
@@ -104,11 +103,31 @@ function baseConfig(): DevisConfig {
   };
 }
 
-/** Consommables « inclus par défaut » (visserie, disjoncteurs) en mode standard. */
-function standardSupplements(articles: CatalogueArticle[]): DevisSupplement[] {
+function isDisjoncteur(a: CatalogueArticle): boolean {
+  return /disjoncteur/i.test(a.designation);
+}
+
+/** Un disjoncteur correspond-il au réseau ? (mono ↔ monophasé, tri ↔ 3P+N). */
+function disjoncteurPourReseau(a: CatalogueArticle, reseau: Reseau): boolean {
+  const tri = /3p\s*\+\s*n|\(tri\)|triphas/i.test(a.designation);
+  const mono = /monophas/i.test(a.designation);
+  return reseau === "tri" ? tri : mono;
+}
+
+/**
+ * Consommables « inclus par défaut » à intégrer d'office en mode standard.
+ * Le disjoncteur est filtré selon le réseau : le monophasé n'apparaît que sur
+ * une install mono, le triphasé (3P+N) que sur une install tri — plus de
+ * décoche manuelle.
+ */
+export function inclusDefautIds(
+  articles: CatalogueArticle[],
+  reseau: Reseau,
+): string[] {
   return articles
     .filter((a) => a.actif && a.inclus_defaut)
-    .map((a) => ({ article_id: a.id, quantite: 1 }));
+    .filter((a) => !isDisjoncteur(a) || disjoncteurPourReseau(a, reseau))
+    .map((a) => a.id);
 }
 
 /**
@@ -151,7 +170,10 @@ export function buildDraft(
     controle_non_conformes: [],
     aides: defaultAides(entite),
     config,
-    supplements: mode === "standard" ? standardSupplements(articles) : [],
+    // Les consommables inclus par défaut sont dérivés (réseau-dépendants),
+    // pas des suppléments figés : voir deriveLignes. Les suppléments sont
+    // uniquement les ajouts manuels de l'utilisateur.
+    supplements: [],
     taux_marge: MARGE_DEFAUT,
     remise: 0,
     mode_tva: entiteConfig(entite).tvaDefaut,
@@ -164,8 +186,9 @@ function ligneFromArticle(
   article: CatalogueArticle,
   quantite: number,
   marge: number,
+  cout: number,
 ): DevisLigne {
-  const pu = puVenteHt(article.cout_ht, marge);
+  const pu = puVenteHt(cout, marge);
   return {
     id: uid(),
     article_id: article.id,
@@ -173,7 +196,7 @@ function ligneFromArticle(
     categorie: article.categorie,
     unite: article.unite,
     quantite,
-    cout_ht: article.cout_ht,
+    cout_ht: cout, // coût dans la devise de l'entité (EUR ou MAD converti)
     taux_marge: marge,
     pu_ht: pu,
     total_ht: round2(pu * quantite),
@@ -189,19 +212,24 @@ export function deriveLignes(
   draft: DevisDraft,
   articles: CatalogueArticle[],
   marge: number,
+  coutOf: (article: CatalogueArticle) => number,
 ): DevisLigne[] {
   const byId = new Map(articles.map((a) => [a.id, a]));
   const lignes: DevisLigne[] = [];
   const push = (id: string | null, qty = 1) => {
     if (!id) return;
     const a = byId.get(id);
-    if (a) lignes.push(ligneFromArticle(a, qty, marge));
+    if (a) lignes.push(ligneFromArticle(a, qty, marge, coutOf(a)));
   };
 
   push(draft.config.borne_id);
   push(draft.config.pose_id);
   push(draft.config.tableau_id);
   push(draft.config.terre_id);
+  // Mode standard : consommables inclus par défaut (disjoncteur adapté au réseau).
+  if (draft.mode === "standard") {
+    for (const id of inclusDefautIds(articles, draft.config.reseau)) push(id);
+  }
   if (draft.config.schema) {
     const schema = articles.find(
       (a) => a.categorie === "option" && /sch[ée]ma/i.test(a.designation),

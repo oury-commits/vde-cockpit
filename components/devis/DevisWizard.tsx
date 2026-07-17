@@ -17,6 +17,9 @@ import { PageTitle } from "@/components/ui/PageTitle";
 import { cn } from "@/lib/cn";
 import { useEntity } from "@/lib/entite/EntityProvider";
 import { useCatalogueStore } from "@/lib/catalogue/store";
+import { useSettings } from "@/lib/settings/store";
+import { prixArticle } from "@/lib/catalogue/prix";
+import type { CatalogueArticle } from "@/lib/catalogue/types";
 import { useLeadsStore } from "@/lib/leads/store";
 import { entiteConfig, optionTva, ENTITE_LABEL } from "@/lib/entite/config";
 import { generateDevisPdf } from "@/lib/leads/devis";
@@ -49,6 +52,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   const { entiteForCreate } = useEntity();
   const catalogue = useCatalogueStore();
   const leads = useLeadsStore();
+  const { tauxMad } = useSettings();
 
   const [draft, setDraft] = useState<DevisDraft | null>(null);
   const [step, setStep] = useState(0);
@@ -60,22 +64,26 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   const entite = lead ? lead.entite : entiteForCreate;
 
   const start = (mode: ModeDevis) => {
-    const actifs = catalogue.articles.filter(
-      (a) => a.actif && a.entite === entite,
-    );
+    const actifs = catalogue.articles.filter((a) => a.actif);
     setDraft(buildDraft(mode, entite, lead, actifs));
   };
 
+  // Catalogue partagé (base EUR). Le coût est converti selon l'entité du devis :
+  // EUR pour FR, MAD (dérivé du taux ou surchargé) pour MA.
+  const entiteDraft = draft?.entite;
+  const coutOf = useMemo(
+    () => (a: CatalogueArticle) =>
+      entiteDraft ? prixArticle(a, entiteDraft, tauxMad) : a.cout_ht,
+    [entiteDraft, tauxMad],
+  );
+
   const articles = useMemo(
-    () =>
-      draft
-        ? catalogue.articles.filter((a) => a.actif && a.entite === draft.entite)
-        : [],
+    () => (draft ? catalogue.articles.filter((a) => a.actif) : []),
     [catalogue.articles, draft],
   );
   const lignes = useMemo(
-    () => (draft ? deriveLignes(draft, articles, draft.taux_marge) : []),
-    [draft, articles],
+    () => (draft ? deriveLignes(draft, articles, draft.taux_marge, coutOf) : []),
+    [draft, articles, coutOf],
   );
   const totaux = useMemo(() => {
     if (!draft) return null;
@@ -95,6 +103,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
     return {
       draft,
       articles,
+      coutOf,
       lignes,
       totaux,
       controle,
@@ -129,7 +138,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
           return { ...d, controle_non_conformes: [...set] };
         }),
     };
-  }, [draft, totaux, articles, lignes, controle, vue]);
+  }, [draft, totaux, articles, coutOf, lignes, controle, vue]);
 
   // ── États d'attente / sélection du mode ──
   if (!ready) {

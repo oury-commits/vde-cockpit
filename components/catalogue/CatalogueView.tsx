@@ -2,15 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { Pencil, Plus, Search } from "lucide-react";
+import type { Entite } from "@/lib/types";
 import type { CatalogueArticle } from "@/lib/catalogue/types";
 import { useCatalogueStore } from "@/lib/catalogue/store";
 import { useEntity } from "@/lib/entite/EntityProvider";
+import { useSettings } from "@/lib/settings/store";
+import { prixInfo } from "@/lib/catalogue/prix";
 import {
   CATEGORIE_LABEL,
   CATEGORIE_ORDER,
   UNITE_LABEL,
 } from "@/lib/catalogue/meta";
-import { ENTITE_LABEL, entiteConfig } from "@/lib/entite/config";
+import { entiteConfig } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { Button } from "@/components/ui/Button";
@@ -23,14 +26,19 @@ function norm(s: string): string {
 
 function ArticleRow({
   article,
+  priceEntite,
+  tauxMad,
   onEdit,
   onToggle,
 }: {
   article: CatalogueArticle;
+  priceEntite: Entite;
+  tauxMad: number;
   onEdit: () => void;
   onToggle: () => void;
 }) {
-  const devise = entiteConfig(article.entite).devise;
+  const devise = entiteConfig(priceEntite).devise;
+  const info = prixInfo(article, priceEntite, tauxMad);
   return (
     <div
       className={cn(
@@ -53,6 +61,18 @@ function ArticleRow({
             inclus
           </span>
         ) : null}
+        {priceEntite === "MA" ? (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold",
+              info.derive
+                ? "bg-muted/12 text-muted"
+                : "bg-brand/10 text-brand",
+            )}
+          >
+            {info.derive ? "DH dérivé" : "DH surchargé"}
+          </span>
+        ) : null}
       </div>
       {/* Méta + actions : 2e ligne sur mobile, alignées à droite sur desktop. */}
       <div className="flex items-center gap-3 sm:shrink-0">
@@ -60,7 +80,7 @@ function ArticleRow({
           {UNITE_LABEL[article.unite]}
         </span>
         <span className="flex-1 text-right font-mono text-sm text-ink sm:w-28 sm:flex-none">
-          {formatMontant(article.cout_ht, devise, { cents: true })}
+          {formatMontant(info.montant, devise, { cents: true })}
         </span>
         <button
           type="button"
@@ -90,15 +110,15 @@ function ArticleRow({
 export function CatalogueView() {
   const store = useCatalogueStore();
   const { active } = useEntity();
+  const { tauxMad } = useSettings();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<CatalogueArticle | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const entityArticles = useMemo(
-    () =>
-      store.articles.filter((a) => active === "ALL" || a.entite === active),
-    [store.articles, active],
-  );
+  // Catalogue partagé (base EUR) ; l'entité active pilote seulement l'affichage
+  // du prix (EUR pour FR/Tous, DH dérivé ou surchargé pour MA).
+  const priceEntite: Entite = active === "MA" ? "MA" : "FR";
+  const entityArticles = store.articles;
 
   const filtered = useMemo(() => {
     const q = norm(search.trim());
@@ -132,6 +152,11 @@ export function CatalogueView() {
           <span className="font-mono text-sm text-muted">
             {entityArticles.length}
           </span>
+          {priceEntite === "MA" ? (
+            <span className="rounded-full bg-cream px-2.5 py-0.5 text-xs font-medium text-muted">
+              Prix Maroc · 1 € = <span className="font-mono">{tauxMad}</span> DH
+            </span>
+          ) : null}
         </div>
         <Button
           icon={Plus}
@@ -159,13 +184,9 @@ export function CatalogueView() {
 
       {entityArticles.length === 0 ? (
         <div className="rounded-xl border border-dashed border-line bg-surface/60 py-16 text-center">
-          <p className="text-sm font-medium text-ink">
-            Catalogue {active !== "ALL" ? ENTITE_LABEL[active] : ""} vide
-          </p>
+          <p className="text-sm font-medium text-ink">Catalogue vide</p>
           <p className="mt-0.5 text-sm text-muted">
-            {active === "MA"
-              ? "La conversion des prix en DH arrive au bloc 3."
-              : "Ajoutez un article pour commencer."}
+            Ajoutez un article pour commencer.
           </p>
         </div>
       ) : (
@@ -185,6 +206,8 @@ export function CatalogueView() {
                   <ArticleRow
                     key={a.id}
                     article={a}
+                    priceEntite={priceEntite}
+                    tauxMad={tauxMad}
                     onEdit={() => setEditing(a)}
                     onToggle={() => store.toggleActif(a.id)}
                   />
@@ -198,12 +221,14 @@ export function CatalogueView() {
       <ArticleDialog
         open={creating}
         onClose={() => setCreating(false)}
-        entite={active === "ALL" ? "FR" : active}
+        priceEntite={priceEntite}
+        tauxMad={tauxMad}
       />
       <ArticleDialog
         open={editing !== null}
         onClose={() => setEditing(null)}
-        entite={editing?.entite ?? "FR"}
+        priceEntite={priceEntite}
+        tauxMad={tauxMad}
         article={editing}
       />
     </div>

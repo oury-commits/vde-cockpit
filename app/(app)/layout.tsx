@@ -4,25 +4,28 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { DevOpenBanner } from "@/components/auth/DevOpenBanner";
 import { EntityProvider } from "@/lib/entite/EntityProvider";
+import { SettingsProvider } from "@/lib/settings/store";
 
 export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <RequireAuth>
-      <EntityProvider>
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <DevOpenBanner />
-            <Topbar />
-            <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-10 md:pt-8">
-              {children}
-            </main>
+      <SettingsProvider>
+        <EntityProvider>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <DevOpenBanner />
+              <Topbar />
+              <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-10 md:pt-8">
+                {children}
+              </main>
+            </div>
+            <BottomNav />
           </div>
-          <BottomNav />
-        </div>
-      </EntityProvider>
+        </EntityProvider>
+      </SettingsProvider>
     </RequireAuth>
   );
 }

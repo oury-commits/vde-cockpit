@@ -15,8 +15,10 @@ import type {
 
 export interface WizardValue {
   draft: DevisDraft;
-  /** Articles catalogue actifs pour l'entité du devis. */
+  /** Articles catalogue actifs (base partagée). */
   articles: CatalogueArticle[];
+  /** Coût de revient d'un article dans la devise de l'entité (EUR ou MAD). */
+  coutOf: (article: CatalogueArticle) => number;
   lignes: DevisLigne[];
   totaux: DevisTotaux;
   /** Contrôle technique /6 dérivé de la configuration. */

@@ -1,5 +1,10 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import type { Metadata } from "next";
+import { ParametresView } from "@/components/settings/ParametresView";
 
-export default function Page() {
-  return <ComingSoon />;
+export const metadata: Metadata = {
+  title: "Paramètres — VDE Cockpit",
+};
+
+export default function ParametresPage() {
+  return <ParametresView />;
 }
