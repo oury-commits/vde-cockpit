@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { Bell, Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/Button";
 import { EntitySwitcher } from "@/components/layout/EntitySwitcher";
 
 export function Topbar() {
@@ -31,13 +31,14 @@ export function Topbar() {
           {/* TODO: brancher données réelles — indicateur de notifications statique */}
           <span className="absolute right-2 top-2 size-1.5 rounded-full bg-alert" />
         </button>
-        {/* Action réservée au module M2 — désactivée (même pattern que MA·MAD). */}
-        <span title="Disponible au module M2 — Devis">
-          <Button icon={Plus} disabled aria-disabled="true">
-            <span className="hidden sm:inline">Créer un devis</span>
-            <span className="sm:hidden">Devis</span>
-          </Button>
-        </span>
+        <Link
+          href="/devis/nouveau"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-cream transition-colors hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+        >
+          <Plus className="size-4 shrink-0" strokeWidth={2} />
+          <span className="hidden sm:inline">Créer un devis</span>
+          <span className="sm:hidden">Devis</span>
+        </Link>
       </div>
     </header>
   );

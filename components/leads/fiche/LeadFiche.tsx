@@ -15,6 +15,7 @@ import {
   Phone,
   Plus,
   Receipt,
+  SlidersHorizontal,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -410,6 +411,13 @@ export function LeadFiche() {
               <Button icon={FileText} onClick={onGenerateDevis} className="mt-2 w-full">
                 Générer le devis (1 clic)
               </Button>
+              <Link
+                href={`/devis/nouveau?lead=${lead.id}`}
+                className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-cream hover:text-ink"
+              >
+                <SlidersHorizontal className="size-4" strokeWidth={1.75} />
+                Générateur détaillé (catalogue)
+              </Link>
             </div>
           )}
 
