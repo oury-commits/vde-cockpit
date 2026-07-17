@@ -50,12 +50,12 @@ export const ENTITES: Record<Entite, EntiteConfig> = {
         mention: AUTOLIQ_MENTION,
       },
     ],
-    // TODO: brancher données réelles — mentions légales FR à compléter
-    // (SIRET Ludres, RGE / Qualifelec / IRVE, ADVENIR, forme + capital).
     mentions: [
-      "Vision Digital Energies — SARL",
-      "SIRET : (à compléter) · TVA intracom. : (à compléter)",
-      "Qualifications : RGE / Qualifelec / IRVE / ADVENIR (à compléter)",
+      "Vision Digital Energies — 870 rue Denis Papin, 54710 Ludres",
+      "SIREN 917 421 125 · SIRET 917 421 125 00019 · TVA FR84 917 421 125",
+      // TODO: brancher données réelles — n° d'assurance décennale (obligatoire
+      // IRVE), fourni par Oury.
+      "Assurance décennale : (à compléter)",
     ],
   },
   MA: {
@@ -69,8 +69,9 @@ export const ENTITES: Record<Entite, EntiteConfig> = {
     tvaDefaut: "ma_20",
     tvaOptions: [{ mode: "ma_20", label: "20 % — standard", taux: 0.2 }],
     mentions: [
-      "Vision Digital Energies Maroc — SARL, capital 10 000 MAD",
-      "ICE : 003910477000069 · RC Rabat : 198269 · IF : 72081360",
+      "Vision Digitale Energies Maroc SARL — capital 10 000 MAD",
+      "IMM 16 Rue Otawa, Océan — Rabat",
+      "ICE 003910477000069 · RC Rabat 198269 · IF 72081360",
     ],
   },
 };

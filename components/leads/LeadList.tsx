@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import type { Lead } from "@/lib/types";
 import type { PeriodGroup } from "@/lib/leads/filters";
 import { relanceState, leadMontant } from "@/lib/leads/filters";
@@ -23,21 +24,40 @@ function RelanceHint({ lead, now }: { lead: Lead; now: Date }) {
 function LeadRow({
   lead,
   now,
+  selected,
   onSelect,
+  onToggleSelect,
+  onDeleteOne,
 }: {
   lead: Lead;
   now: Date;
+  selected: boolean;
   onSelect: (id: string) => void;
+  onToggleSelect: (id: string) => void;
+  onDeleteOne: (id: string) => void;
 }) {
   const montant = leadMontant(lead);
   return (
-    <div className="relative flex w-full items-center gap-3 border-b border-line px-2 py-2.5 text-left transition-colors last:border-0 hover:bg-cream/60">
+    <div
+      className={cn(
+        "relative flex w-full items-center gap-3 border-b border-line px-2 py-2.5 text-left transition-colors last:border-0 hover:bg-cream/60",
+        selected && "bg-brand/5",
+      )}
+    >
       {/* Clic sur la ligne = aperçu (drawer) ; clic sur le nom = fiche complète. */}
       <button
         type="button"
         aria-label={`Aperçu de ${lead.nom}`}
         onClick={() => onSelect(lead.id)}
         className="absolute inset-0"
+      />
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect(lead.id)}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Sélectionner ${lead.nom}`}
+        className="relative z-10 size-4 shrink-0 cursor-pointer accent-brand"
       />
       <TemperatureDot temperature={lead.temperature} />
       <span className="w-16 shrink-0 font-mono text-xs text-muted">{lead.id}</span>
@@ -61,9 +81,17 @@ function LeadRow({
       <span className="hidden w-24 shrink-0 text-right font-mono text-sm text-ink md:block">
         {montant > 0 ? formatMontant(montant, entiteConfig(lead.entite).devise) : "—"}
       </span>
-      <span className="hidden w-40 shrink-0 text-right text-xs lg:block">
+      <span className="hidden w-32 shrink-0 text-right text-xs lg:block">
         <RelanceHint lead={lead} now={now} />
       </span>
+      <button
+        type="button"
+        aria-label={`Supprimer ${lead.nom}`}
+        onClick={() => onDeleteOne(lead.id)}
+        className="relative z-10 grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-alert/10 hover:text-alert"
+      >
+        <Trash2 className="size-4" strokeWidth={1.75} />
+      </button>
     </div>
   );
 }
@@ -71,11 +99,17 @@ function LeadRow({
 export function LeadList({
   groups,
   now,
+  selectedIds,
   onSelect,
+  onToggleSelect,
+  onDeleteOne,
 }: {
   groups: PeriodGroup[];
   now: Date;
+  selectedIds: Set<string>;
   onSelect: (id: string) => void;
+  onToggleSelect: (id: string) => void;
+  onDeleteOne: (id: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -97,7 +131,10 @@ export function LeadList({
                 key={lead.id}
                 lead={lead}
                 now={now}
+                selected={selectedIds.has(lead.id)}
                 onSelect={onSelect}
+                onToggleSelect={onToggleSelect}
+                onDeleteOne={onDeleteOne}
               />
             ))}
           </div>

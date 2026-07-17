@@ -60,6 +60,7 @@ interface StoreValue {
   importDrafts: (drafts: LeadDraft[]) => ImportReport;
   updateLead: (id: string, patch: Partial<Lead>) => void;
   deleteLead: (id: string) => void;
+  deleteLeads: (ids: string[]) => void;
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   generateDevis: (leadId: string, mode?: ModeTva) => Devis | null;
@@ -140,6 +141,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
         nom: input.nom,
         telephone: input.telephone,
         email: input.email ?? null,
+        adresse: input.adresse ?? null,
         code_postal: input.code_postal ?? null,
         ville: input.ville ?? null,
         type_logement: input.type_logement ?? null,
@@ -147,10 +149,21 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
         puissance_souhaitee: input.puissance_souhaitee ?? null,
         distance_tableau: input.distance_tableau ?? null,
         eligible_advenir: input.eligible_advenir ?? null,
+        reseau: input.reseau ?? null,
+        puissance_compteur_kva: input.puissance_compteur_kva ?? null,
+        occupation: input.occupation ?? null,
+        emplacement: input.emplacement ?? null,
+        fixation: input.fixation ?? null,
+        obstacles: input.obstacles ?? null,
+        budget: input.budget ?? null,
+        delai: input.delai ?? null,
+        pv_projet: input.pv_projet ?? null,
+        pv_autre: null,
         temperature: scoreTemperature(input),
         statut: input.statut ?? "nouveau",
         montant_estime: input.montant_estime ?? null,
         devis: null,
+        facture: null,
         echeancier: null,
         prochaine_action: null,
         date_relance: null,
@@ -246,6 +259,14 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     setLeads((prev) => prev.filter((l) => l.id !== id));
     setActivites((prev) => prev.filter((a) => a.lead_id !== id));
     void getRepository().deleteLead(id);
+  }, []);
+
+  const deleteLeads = useCallback<StoreValue["deleteLeads"]>((ids) => {
+    if (ids.length === 0) return;
+    const set = new Set(ids);
+    setLeads((prev) => prev.filter((l) => !set.has(l.id)));
+    setActivites((prev) => prev.filter((a) => !set.has(a.lead_id)));
+    void getRepository().deleteLeads(ids);
   }, []);
 
   const changeStatut = useCallback<StoreValue["changeStatut"]>(
@@ -421,6 +442,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       importDrafts,
       updateLead,
       deleteLead,
+      deleteLeads,
       changeStatut,
       addActivite: pushActivite,
       generateDevis,
@@ -439,6 +461,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       importDrafts,
       updateLead,
       deleteLead,
+      deleteLeads,
       changeStatut,
       pushActivite,
       generateDevis,

@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
 
 const VARIANTS: Record<Variant, string> = {
@@ -12,6 +12,8 @@ const VARIANTS: Record<Variant, string> = {
     "bg-surface text-ink border border-line hover:bg-cream",
   ghost:
     "bg-transparent text-muted border border-transparent hover:bg-cream hover:text-ink",
+  danger:
+    "bg-alert text-cream hover:bg-alert/90 border border-transparent",
 };
 
 const SIZES: Record<Size, string> = {

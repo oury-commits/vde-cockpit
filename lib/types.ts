@@ -148,6 +148,7 @@ export interface Lead {
   nom: string;
   telephone: string;
   email?: string | null;
+  adresse?: string | null; // rue (STREET_ADDRESS de l'export Facebook)
   code_postal?: string | null;
   ville?: string | null;
 

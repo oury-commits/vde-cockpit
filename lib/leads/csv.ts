@@ -1,4 +1,12 @@
-import type { Puissance, TypeLogement } from "@/lib/types";
+import type {
+  Emplacement,
+  Fixation,
+  Occupation,
+  Puissance,
+  PvProjet,
+  Reseau,
+  TypeLogement,
+} from "@/lib/types";
 
 /** Brouillon de lead issu d'une ligne CSV (avant insertion dans le store). */
 export interface LeadDraft {
@@ -9,6 +17,7 @@ export interface LeadDraft {
   nom: string;
   telephone: string;
   email?: string;
+  adresse?: string;
   code_postal?: string;
   ville?: string;
   source_campagne?: string;
@@ -20,6 +29,16 @@ export interface LeadDraft {
   montant_estime?: number;
   date_reception?: string;
   notes?: string;
+  // Qualification IRVE (formulaire Facebook)
+  reseau?: Reseau;
+  puissance_compteur_kva?: number;
+  occupation?: Occupation;
+  emplacement?: Emplacement;
+  fixation?: Fixation;
+  obstacles?: string;
+  budget?: string;
+  delai?: string;
+  pv_projet?: PvProjet;
 }
 
 export type ImportField = keyof LeadDraft;
@@ -34,6 +53,7 @@ export const IMPORT_FIELDS: {
   { key: "telephone", label: "Téléphone", required: true },
   { key: "statut_source", label: "Statut d'origine" },
   { key: "email", label: "Email" },
+  { key: "adresse", label: "Adresse (rue)" },
   { key: "code_postal", label: "Code postal" },
   { key: "ville", label: "Ville" },
   { key: "source_campagne", label: "Source / campagne" },
@@ -45,6 +65,15 @@ export const IMPORT_FIELDS: {
   { key: "montant_estime", label: "Montant estimé (€)" },
   { key: "date_reception", label: "Date de réception" },
   { key: "notes", label: "Notes" },
+  { key: "reseau", label: "Réseau (mono/tri)" },
+  { key: "puissance_compteur_kva", label: "Puissance compteur (kVA)" },
+  { key: "occupation", label: "Propriétaire / Locataire" },
+  { key: "emplacement", label: "Emplacement (int/ext)" },
+  { key: "fixation", label: "Fixation (murale/pied)" },
+  { key: "obstacles", label: "Obstacles" },
+  { key: "budget", label: "Budget" },
+  { key: "delai", label: "Délai projet" },
+  { key: "pv_projet", label: "Panneaux solaires" },
 ];
 
 // ── Parsing CSV ────────────────────────────────────────────────────────────
@@ -137,10 +166,12 @@ function normalize(s: string): string {
 const SYNONYMS: Record<ImportField, string[]> = {
   ref: ["ref", "id", "identifiant", "reference", "lead id", "code", "n lead"],
   statut_source: ["statut", "status", "etape", "stage", "etat", "phase"],
-  nom: ["nom", "name", "full name", "fullname", "client", "contact", "prenom nom"],
+  // Pas de "name" seul : il attraperait "ad_name" / "campaign_name" (la pub).
+  nom: ["nom", "full name", "fullname", "nom complet", "prenom nom", "client", "contact"],
   telephone: ["telephone", "tel", "phone", "mobile", "numero", "phone number"],
   email: ["email", "e mail", "mail", "courriel"],
-  code_postal: ["code postal", "cp", "zip", "postal", "zipcode"],
+  adresse: ["adresse", "address", "street address", "rue", "voie", "street"],
+  code_postal: ["code postal", "cp", "zip", "postal", "zipcode", "zip code", "post code"],
   ville: ["ville", "city", "commune", "localite"],
   source_campagne: ["source", "campagne", "campaign", "ad", "adset", "pub"],
   type_logement: ["type logement", "logement", "housing", "habitat"],
@@ -151,6 +182,15 @@ const SYNONYMS: Record<ImportField, string[]> = {
   montant_estime: ["montant", "budget", "estimation", "montant estime", "prix"],
   date_reception: ["date reception", "date", "created", "timestamp", "recu le"],
   notes: ["notes", "note", "commentaire", "remarque", "message"],
+  reseau: ["reseau", "phase", "monophase triphase", "type reseau"],
+  puissance_compteur_kva: ["kva", "puissance compteur", "compteur", "abonnement"],
+  occupation: ["proprietaire", "locataire", "occupation", "statut occupation", "proprietaire locataire"],
+  emplacement: ["emplacement", "interieur exterieur", "int ext", "lieu pose"],
+  fixation: ["fixation", "murale", "sur pied", "support"],
+  obstacles: ["obstacles", "obstacle", "contraintes"],
+  budget: ["budget", "enveloppe"],
+  delai: ["delai", "delai projet", "echeance projet", "quand"],
+  pv_projet: ["panneaux", "solaire", "photovoltaique", "pv", "panneaux solaires"],
 };
 
 export type Mapping = Partial<Record<ImportField, string>>;
@@ -221,6 +261,52 @@ function parseLogement(v: string): TypeLogement | undefined {
   return undefined;
 }
 
+function parseReseau(v: string): Reseau | undefined {
+  const n = normalize(v);
+  if (n.includes("tri")) return "tri";
+  if (n.includes("mono")) return "mono";
+  return undefined;
+}
+
+function parseOccupation(v: string): Occupation | undefined {
+  const n = normalize(v);
+  if (n.includes("proprietaire") || n.includes("owner")) return "proprietaire";
+  if (n.includes("locataire") || n.includes("tenant") || n.includes("location")) {
+    return "locataire";
+  }
+  return undefined;
+}
+
+function parseEmplacement(v: string): Emplacement | undefined {
+  const n = normalize(v);
+  if (n.includes("exterieur") || n.includes("dehors") || n.includes("outdoor")) {
+    return "exterieur";
+  }
+  if (n.includes("interieur") || n.includes("garage") || n.includes("indoor")) {
+    return "interieur";
+  }
+  return undefined;
+}
+
+function parseFixation(v: string): Fixation | undefined {
+  const n = normalize(v);
+  if (n.includes("pied") || n.includes("totem") || n.includes("borne")) return "pied";
+  if (n.includes("mur")) return "murale";
+  return undefined;
+}
+
+/** Solaire : kWc explicite sinon oui->autre (à enrichir) / non->aucun. */
+function parsePv(v: string): PvProjet | undefined {
+  const n = normalize(v);
+  if (!n) return undefined;
+  if (n.includes("9")) return "9kwc";
+  if (n.includes("6")) return "6kwc";
+  if (n.includes("3")) return "3kwc";
+  if (["non", "no", "aucun", "pas"].some((x) => n.includes(x))) return "aucun";
+  if (["oui", "yes", "interesse"].some((x) => n.includes(x))) return "autre";
+  return undefined;
+}
+
 function cell(row: string[], headers: string[], header?: string): string {
   if (!header) return "";
   const i = headers.indexOf(header);
@@ -245,6 +331,8 @@ export function rowsToDrafts(
     if (statutSource) draft.statut_source = statutSource;
     const email = get("email");
     if (email) draft.email = email;
+    const adresse = get("adresse");
+    if (adresse) draft.adresse = adresse;
     const cp = get("code_postal");
     if (cp) draft.code_postal = cp;
     const ville = get("ville");
@@ -272,6 +360,27 @@ export function rowsToDrafts(
       const d = new Date(rawDate);
       if (!Number.isNaN(d.getTime())) draft.date_reception = d.toISOString();
     }
+
+    // Qualification IRVE
+    const reseau = parseReseau(get("reseau"));
+    if (reseau) draft.reseau = reseau;
+    const kva = parseNum(get("puissance_compteur_kva"));
+    if (kva !== undefined) draft.puissance_compteur_kva = kva;
+    const occupation = parseOccupation(get("occupation"));
+    if (occupation) draft.occupation = occupation;
+    const emplacement = parseEmplacement(get("emplacement"));
+    if (emplacement) draft.emplacement = emplacement;
+    const fixation = parseFixation(get("fixation"));
+    if (fixation) draft.fixation = fixation;
+    const obstacles = get("obstacles");
+    if (obstacles) draft.obstacles = obstacles;
+    const budget = get("budget");
+    if (budget) draft.budget = budget;
+    const delai = get("delai");
+    if (delai) draft.delai = delai;
+    const pv = parsePv(get("pv_projet"));
+    if (pv) draft.pv_projet = pv;
+
     return draft;
   });
 }
