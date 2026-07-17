@@ -57,7 +57,7 @@ function waLink(tel: string, entite: Lead["entite"]): string {
 }
 
 function mapsLink(lead: Lead): string {
-  const q = [lead.code_postal, lead.ville].filter(Boolean).join(" ");
+  const q = [lead.adresse, lead.code_postal, lead.ville].filter(Boolean).join(" ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
@@ -320,6 +320,7 @@ export function LeadFiche() {
           ) : (
             <InfoRow label="Email" value={null} />
           )}
+          <InfoRow label="Adresse" value={lead.adresse} />
           <a href={mapsLink(lead)} target="_blank" rel="noopener noreferrer" className="flex justify-between gap-4 py-1 text-sm hover:text-brand">
             <span className="text-muted">Localisation</span>
             <span className="inline-flex items-center gap-1 text-ink">

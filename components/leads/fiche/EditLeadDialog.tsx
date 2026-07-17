@@ -96,6 +96,9 @@ export function EditLeadDialog({
             onChange={(e) => set("source_campagne", e.target.value || null)}
           />
         </Field>
+        <Field label="Adresse (rue)" className="sm:col-span-2">
+          <Input value={form.adresse ?? ""} onChange={(e) => set("adresse", e.target.value || null)} />
+        </Field>
         <Field label="Code postal">
           <Input value={form.code_postal ?? ""} onChange={(e) => set("code_postal", e.target.value || null)} />
         </Field>

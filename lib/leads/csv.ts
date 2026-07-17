@@ -17,6 +17,7 @@ export interface LeadDraft {
   nom: string;
   telephone: string;
   email?: string;
+  adresse?: string;
   code_postal?: string;
   ville?: string;
   source_campagne?: string;
@@ -52,6 +53,7 @@ export const IMPORT_FIELDS: {
   { key: "telephone", label: "Téléphone", required: true },
   { key: "statut_source", label: "Statut d'origine" },
   { key: "email", label: "Email" },
+  { key: "adresse", label: "Adresse (rue)" },
   { key: "code_postal", label: "Code postal" },
   { key: "ville", label: "Ville" },
   { key: "source_campagne", label: "Source / campagne" },
@@ -164,10 +166,12 @@ function normalize(s: string): string {
 const SYNONYMS: Record<ImportField, string[]> = {
   ref: ["ref", "id", "identifiant", "reference", "lead id", "code", "n lead"],
   statut_source: ["statut", "status", "etape", "stage", "etat", "phase"],
-  nom: ["nom", "name", "full name", "fullname", "client", "contact", "prenom nom"],
+  // Pas de "name" seul : il attraperait "ad_name" / "campaign_name" (la pub).
+  nom: ["nom", "full name", "fullname", "nom complet", "prenom nom", "client", "contact"],
   telephone: ["telephone", "tel", "phone", "mobile", "numero", "phone number"],
   email: ["email", "e mail", "mail", "courriel"],
-  code_postal: ["code postal", "cp", "zip", "postal", "zipcode"],
+  adresse: ["adresse", "address", "street address", "rue", "voie", "street"],
+  code_postal: ["code postal", "cp", "zip", "postal", "zipcode", "zip code", "post code"],
   ville: ["ville", "city", "commune", "localite"],
   source_campagne: ["source", "campagne", "campaign", "ad", "adset", "pub"],
   type_logement: ["type logement", "logement", "housing", "habitat"],
@@ -327,6 +331,8 @@ export function rowsToDrafts(
     if (statutSource) draft.statut_source = statutSource;
     const email = get("email");
     if (email) draft.email = email;
+    const adresse = get("adresse");
+    if (adresse) draft.adresse = adresse;
     const cp = get("code_postal");
     if (cp) draft.code_postal = cp;
     const ville = get("ville");

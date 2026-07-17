@@ -15,6 +15,7 @@ create type pv_projet as enum ('aucun', '3kwc', '6kwc', '9kwc', 'autre');
 
 -- ── Colonnes fiche sur leads ─────────────────────────────────────────────────
 alter table leads
+  add column adresse                text,       -- rue (STREET_ADDRESS export FB)
   add column reseau                 reseau,
   add column puissance_compteur_kva numeric,
   add column occupation            occupation,

@@ -140,6 +140,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
         nom: input.nom,
         telephone: input.telephone,
         email: input.email ?? null,
+        adresse: input.adresse ?? null,
         code_postal: input.code_postal ?? null,
         ville: input.ville ?? null,
         type_logement: input.type_logement ?? null,

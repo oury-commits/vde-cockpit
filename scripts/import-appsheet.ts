@@ -85,6 +85,32 @@ console.log("Encodage détecté :", text.length ? "OK" : "vide", `(${text.length
 const { headers, rows } = parseCsv(text);
 const mapping = guessMapping(headers);
 
+// Colonnes IDENTITÉ de l'export Facebook — mapping explicite qui PRIME sur la
+// détection auto (le nom DOIT venir de FULL_NAME, jamais de ad_name/la pub).
+const FB_IDENTITE: Record<string, ImportField> = {
+  full_name: "nom",
+  email: "email",
+  phone: "telephone",
+  phone_number: "telephone",
+  street_address: "adresse",
+  city: "ville",
+  zip_code: "code_postal",
+  post_code: "code_postal",
+  ad_name: "source_campagne",
+  campaign_name: "source_campagne",
+  created_time: "date_reception",
+};
+const norm = (h: string) => h.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+for (const h of headers) {
+  const f = FB_IDENTITE[norm(h)];
+  // Prime pour les champs identité (écrase une éventuelle mauvaise détection).
+  if (f === "nom" || f === "email" || f === "telephone" || f === "adresse") {
+    mapping[f] = h;
+  } else if (f && !mapping[f]) {
+    mapping[f] = h;
+  }
+}
+
 // Colonnes de qualification numérotées 0→11 de l'export Facebook/AppSheet
 // (mapping positionnel spécifié par le cahier — n'écrase pas une colonne déjà
 // mappée par son nom).
@@ -170,6 +196,16 @@ if (!mapping.statut_source) {
     const flag = cible.includes("NON RECONNU") ? "  [!]" : "     ";
     console.log(`${flag} ${String(n).padStart(4)} × « ${raw} » → ${cible}`);
   }
+}
+
+console.log("");
+console.log("Aperçu (3 premières lignes — nom réel vs campagne) :");
+for (const d of drafts.slice(0, 3)) {
+  console.log(
+    `   nom=« ${d.nom} » · campagne=« ${d.source_campagne ?? "—"} » · ${
+      d.adresse ?? "—"
+    } ${d.code_postal ?? ""} ${d.ville ?? ""}`.trimEnd(),
+  );
 }
 
 if (!commit) {
