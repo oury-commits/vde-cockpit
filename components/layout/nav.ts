@@ -4,6 +4,7 @@ import {
   Building2,
   Users,
   FileText,
+  Package,
   Sparkles,
   Inbox,
   CalendarDays,
@@ -41,6 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Prospects B2B", href: "/prospects", icon: Building2 },
       { label: "Clients", href: "/clients", icon: Users },
       { label: "Devis & Factures", href: "/devis", icon: FileText },
+      { label: "Catalogue", href: "/catalogue", icon: Package },
     ],
   },
   {
