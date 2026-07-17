@@ -181,6 +181,8 @@ export interface Lead {
   prochaine_action?: string | null;
   date_relance?: string | null;
   motif_perte?: MotifPerte | null;
+  /** Archivé : sorti des listes actives mais conservé (pièce comptable émise). */
+  archived?: boolean | null;
 
   assigne_a?: string | null; // Oury / Shaima
   notes?: string | null;

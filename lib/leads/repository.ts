@@ -1,5 +1,6 @@
 import type { Activite, Lead } from "@/lib/types";
 import { buildSeed } from "@/lib/leads/seed";
+import { seedLocalSequencesFromLeads } from "@/lib/leads/sequences";
 import { uid } from "@/lib/uid";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 
@@ -28,6 +29,9 @@ const STORAGE_KEY = "vde.crm.v1";
 export function seedState(): Persisted {
   const now = new Date();
   const leads = buildSeed(now);
+  // Aligne le compteur local sur les numéros seedés (démo) pour éviter toute
+  // collision avec les nouveaux documents.
+  seedLocalSequencesFromLeads(leads);
   const activites: Activite[] = leads.map((l) => ({
     id: uid(),
     lead_id: l.id,

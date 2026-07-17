@@ -4,8 +4,6 @@ import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import type { DevisDraft, DevisLigne } from "@/lib/devis/types";
 import type { DevisTotaux } from "@/lib/devis/pricing";
 
-export { nextDevisRef } from "@/lib/leads/devis";
-
 /** Fige le devis du wizard dans le modèle `Devis` (snapshot des prix). */
 export function buildDevisSnapshot(
   draft: DevisDraft,

@@ -159,12 +159,12 @@ export function LeadFiche() {
   const step = stepIndex(lead);
   const tel = lead.telephone.replace(/\s/g, "");
 
-  const onGenerateDevis = () => {
-    const devis = store.generateDevis(lead.id, tvaMode || undefined);
+  const onGenerateDevis = async () => {
+    const devis = await store.generateDevis(lead.id, tvaMode || undefined);
     if (devis) generateDevisPdf(lead, devis);
   };
-  const onConvertFacture = () => {
-    const facture = store.generateFacture(lead.id);
+  const onConvertFacture = async () => {
+    const facture = await store.generateFacture(lead.id);
     if (facture) generateFacturePdf(lead, facture);
   };
   const addNote = () => {
