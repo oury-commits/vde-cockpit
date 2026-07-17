@@ -472,7 +472,7 @@ export function LeadFiche() {
           <>
             <Button variant="ghost" onClick={() => setDeleteOpen(false)}>Annuler</Button>
             <Button
-              className="bg-alert hover:bg-alert/90"
+              variant="danger"
               onClick={() => {
                 store.deleteLead(lead.id);
                 router.push("/leads");

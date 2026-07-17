@@ -19,6 +19,7 @@ export interface LeadsRepository {
   persistAll(state: Persisted): Promise<void>;
   /** Suppression définitive (local : couvert par persistAll ; Supabase : DELETE). */
   deleteLead(id: string): Promise<void>;
+  deleteLeads(ids: string[]): Promise<void>;
 }
 
 const STORAGE_KEY = "vde.crm.v1";
@@ -62,6 +63,10 @@ class LocalRepository implements LeadsRepository {
   async deleteLead(): Promise<void> {
     // La suppression est reflétée par persistAll (réécriture complète).
   }
+
+  async deleteLeads(): Promise<void> {
+    // Idem : persistAll réécrit l'état complet.
+  }
 }
 
 class SupabaseRepository implements LeadsRepository {
@@ -94,6 +99,12 @@ class SupabaseRepository implements LeadsRepository {
     if (!sb) return;
     // Les activités partent en cascade (FK on delete cascade).
     await sb.from("leads").delete().eq("id", id);
+  }
+
+  async deleteLeads(ids: string[]): Promise<void> {
+    const sb = getSupabase();
+    if (!sb || ids.length === 0) return;
+    await sb.from("leads").delete().in("id", ids);
   }
 }
 

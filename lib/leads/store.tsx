@@ -60,6 +60,7 @@ interface StoreValue {
   importDrafts: (drafts: LeadDraft[]) => ImportReport;
   updateLead: (id: string, patch: Partial<Lead>) => void;
   deleteLead: (id: string) => void;
+  deleteLeads: (ids: string[]) => void;
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   generateDevis: (leadId: string, mode?: ModeTva) => Devis | null;
@@ -260,6 +261,14 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     void getRepository().deleteLead(id);
   }, []);
 
+  const deleteLeads = useCallback<StoreValue["deleteLeads"]>((ids) => {
+    if (ids.length === 0) return;
+    const set = new Set(ids);
+    setLeads((prev) => prev.filter((l) => !set.has(l.id)));
+    setActivites((prev) => prev.filter((a) => !set.has(a.lead_id)));
+    void getRepository().deleteLeads(ids);
+  }, []);
+
   const changeStatut = useCallback<StoreValue["changeStatut"]>(
     (id, statut, motif) => {
       const now = new Date().toISOString();
@@ -433,6 +442,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       importDrafts,
       updateLead,
       deleteLead,
+      deleteLeads,
       changeStatut,
       addActivite: pushActivite,
       generateDevis,
@@ -451,6 +461,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       importDrafts,
       updateLead,
       deleteLead,
+      deleteLeads,
       changeStatut,
       pushActivite,
       generateDevis,
