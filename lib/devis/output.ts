@@ -13,25 +13,31 @@ export function buildDevisSnapshot(
   totaux: DevisTotaux,
   ref: string,
   dateISO: string,
+  statut: Devis["statut"] = "brouillon",
 ): Devis {
   const cfg = entiteConfig(draft.entite);
+  const lignesDevis = lignes.map((l) => ({
+    label:
+      l.quantite !== 1 || l.unite !== "u"
+        ? `${l.designation} (${l.quantite} ${UNITE_LABEL[l.unite]})`
+        : l.designation,
+    montant_ht: l.total_ht,
+  }));
+  // La réduction commerciale apparaît comme une ligne négative dans le devis.
+  if (totaux.remise > 0) {
+    lignesDevis.push({ label: "Réduction commerciale", montant_ht: -totaux.remise });
+  }
   return {
     ref,
     entite: draft.entite,
     devise: cfg.devise,
     date_creation: dateISO,
-    lignes: lignes.map((l) => ({
-      label:
-        l.quantite !== 1 || l.unite !== "u"
-          ? `${l.designation} (${l.quantite} ${UNITE_LABEL[l.unite]})`
-          : l.designation,
-      montant_ht: l.total_ht,
-    })),
+    lignes: lignesDevis,
     montant_ht: totaux.montant_ht,
     mode_tva: draft.mode_tva,
     taux_tva: totaux.taux_tva,
     montant_tva: totaux.montant_tva,
     montant_ttc: totaux.montant_ttc,
-    statut: "brouillon",
+    statut,
   };
 }

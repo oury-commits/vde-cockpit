@@ -70,12 +70,28 @@ const BRAND: [number, number, number] = [15, 61, 46];
 const INK: [number, number, number] = [26, 26, 26];
 const MUTED: [number, number, number] = [92, 107, 99];
 
+/** Sous-ensemble client requis par le PDF (un Lead le satisfait aussi). */
+export interface DevisPdfClient {
+  nom: string;
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  telephone?: string | null;
+  email?: string | null;
+}
+
 /**
  * Génère le PDF du devis et déclenche le téléchargement (client only).
- * Devise, TVA et mentions suivent l'entité du devis. Police Helvetica
- * (standard PDF) : les règles de police UI ne s'appliquent pas à un document.
+ * Devise, TVA et mentions suivent l'entité du devis. La marge interne
+ * n'apparaît jamais : seules les lignes HT et le TTC sont imprimés. Police
+ * Helvetica (standard PDF) : les règles de police UI ne s'appliquent pas ici.
+ * L'échéancier peut être fourni (mode 50/50 ou 40/40/20) ; sinon 40/40/20.
  */
-export function generateDevisPdf(lead: Lead, devis: Devis): void {
+export function generateDevisPdf(
+  client: DevisPdfClient,
+  devis: Devis,
+  echeancier?: Echeance[],
+): void {
   const cfg = entiteConfig(devis.entite);
   const opt = optionTva(devis.entite, devis.mode_tva);
   const eur = (n: number) => formatMontant(n, devis.devise, { cents: true });
@@ -110,15 +126,17 @@ export function generateDevisPdf(lead: Lead, devis: Devis): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   y += 6;
-  doc.text(lead.nom, mx, y);
+  doc.text(client.nom || "—", mx, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(...MUTED);
-  y += 5;
-  const loc = [lead.code_postal, lead.ville].filter(Boolean).join(" ");
-  if (loc) doc.text(loc, mx, y), (y += 5);
-  if (lead.telephone) doc.text(lead.telephone, mx, y), (y += 5);
-  if (lead.email) doc.text(lead.email, mx, y), (y += 5);
+  const loc = [client.code_postal, client.ville].filter(Boolean).join(" ");
+  for (const line of [client.adresse, loc, client.telephone, client.email]) {
+    if (line && line.trim()) {
+      y += 5;
+      doc.text(line, mx, y);
+    }
+  }
 
   // Lignes
   y += 6;
@@ -157,17 +175,19 @@ export function generateDevisPdf(lead: Lead, devis: Devis): void {
   doc.setFontSize(11);
   tot("Total TTC", eur(devis.montant_ttc), true);
 
-  // Échéancier
+  // Échéancier (fourni par l'appelant, sinon 40/40/20 par défaut)
+  const echeances = echeancier ?? buildEcheancier(devis.montant_ttc);
+  const plan = echeances.map((e) => e.pct).join(" / ");
   y += 6;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...BRAND);
-  doc.text("Échéancier de paiement — 40 / 40 / 20", mx, y);
+  doc.text(`Échéancier de paiement — ${plan}`, mx, y);
   y += 7;
   doc.setTextColor(...INK);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  for (const e of buildEcheancier(devis.montant_ttc)) {
+  for (const e of echeances) {
     doc.text(`${e.pct} % — ${ECHEANCE_LABEL[e.label]}`, mx, y);
     doc.text(eur(e.montant), pageW - mx, y, { align: "right" });
     y += 7;

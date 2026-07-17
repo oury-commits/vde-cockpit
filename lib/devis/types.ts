@@ -2,9 +2,17 @@ import type { Entite, ModeTva, Reseau } from "@/lib/types";
 import type { CategorieArticle, Unite } from "@/lib/catalogue/types";
 
 // Modèle du devis en construction (wizard). Les lignes sont DÉRIVÉES des
-// sélections + du catalogue (voir builder.ts) ; à l'enregistrement on fige les
+// sélections + du catalogue (voir builder.ts) ; à la validation on fige les
 // prix (snapshot) pour que l'édition ultérieure du catalogue ne bouge pas un
 // devis déjà émis.
+
+/** Deux modes d'entrée : forfait guidé ou accès complet au catalogue. */
+export type ModeDevis = "standard" | "libre";
+
+export const MODE_DEVIS_LABEL: Record<ModeDevis, string> = {
+  standard: "Forfait Standard IRVE",
+  libre: "Devis Libre",
+};
 
 /** Ligne de devis dérivée (prix figés au moment du calcul). */
 export interface DevisLigne {
@@ -20,10 +28,20 @@ export interface DevisLigne {
   total_ht: number; // pu_ht × quantite
 }
 
-export interface ConformitePoint {
-  key: string;
+/** Contrôle technique /6 (sécurité électrique IRVE). */
+export type ControleKey =
+  | "type"
+  | "poles"
+  | "courbe"
+  | "differentiel"
+  | "cable"
+  | "calibre";
+
+export interface ControleLigne {
+  key: ControleKey;
   label: string;
-  ok: boolean;
+  valeur: string; // valeur calculée / attendue
+  conforme: boolean;
 }
 
 export interface AideLigne {
@@ -70,12 +88,15 @@ export interface DevisSupplement {
 export interface DevisDraft {
   entite: Entite;
   lead_id: string | null;
+  mode: ModeDevis;
   client: DevisClient;
-  conformite: ConformitePoint[];
+  /** Clés du contrôle marquées non conformes (les autres sont OK). */
+  controle_non_conformes: ControleKey[];
   aides: AideLigne[];
   config: DevisConfig;
   supplements: DevisSupplement[];
-  taux_marge: number; // global (0.35 par défaut)
+  taux_marge: number; // marge cible globale (0.35 par défaut)
+  remise: number; // réduction commerciale HT
   mode_tva: ModeTva;
   mode_paiement: ModePaiement;
   notes: string;
@@ -85,7 +106,7 @@ export interface DevisDraft {
 export type VueDevis = "client" | "interne";
 
 export const WIZARD_STEPS = [
-  { key: "client", label: "Client" },
+  { key: "client", label: "Client & conformité" },
   { key: "aides", label: "Aides" },
   { key: "config", label: "Configuration" },
   { key: "supplements", label: "Suppléments" },

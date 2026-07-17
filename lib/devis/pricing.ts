@@ -31,7 +31,9 @@ export function ligneTotalHt(ligne: DevisLigne): number {
 
 export interface DevisTotaux {
   cout_total: number; // interne : somme des coûts de revient
-  montant_ht: number;
+  montant_ht_brut: number; // avant réduction
+  remise: number; // réduction commerciale HT appliquée
+  montant_ht: number; // après réduction
   marge_euro: number;
   marge_pct: number; // marge € / HT
   taux_tva: number;
@@ -45,11 +47,14 @@ export function computeTotaux(
   lignes: DevisLigne[],
   tauxTva: number,
   aidesTotal: number,
+  remise = 0,
 ): DevisTotaux {
   const cout_total = round2(
     lignes.reduce((s, l) => s + l.cout_ht * l.quantite, 0),
   );
-  const montant_ht = round2(lignes.reduce((s, l) => s + ligneTotalHt(l), 0));
+  const montant_ht_brut = round2(lignes.reduce((s, l) => s + ligneTotalHt(l), 0));
+  const remiseAppliquee = round2(Math.min(Math.max(0, remise), montant_ht_brut));
+  const montant_ht = round2(montant_ht_brut - remiseAppliquee);
   const marge_euro = round2(montant_ht - cout_total);
   const marge_pct = montant_ht > 0 ? marge_euro / montant_ht : 0;
   const montant_tva = round2(montant_ht * tauxTva);
@@ -57,6 +62,8 @@ export function computeTotaux(
   const aides = round2(Math.max(0, aidesTotal));
   return {
     cout_total,
+    montant_ht_brut,
+    remise: remiseAppliquee,
     montant_ht,
     marge_euro,
     marge_pct,

@@ -95,6 +95,12 @@ export function DevisPreview() {
 
         {/* Totaux */}
         <div className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-sm">
+          {totaux.remise > 0 ? (
+            <>
+              <Row label="Sous-total HT" value={m(totaux.montant_ht_brut)} />
+              <Row label="Réduction" value={`− ${m(totaux.remise)}`} tone="gold" />
+            </>
+          ) : null}
           <Row label="Total HT" value={m(totaux.montant_ht)} />
           <Row
             label={tvaLabel}

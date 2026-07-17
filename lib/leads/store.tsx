@@ -332,6 +332,8 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   const attachDevis = useCallback<StoreValue["attachDevis"]>(
     (leadId, devis, echeancier) => {
       const now = new Date().toISOString();
+      // Un brouillon n'avance pas le pipeline ; un devis validé (envoye) oui.
+      const advance = devis.statut === "envoye";
       setLeads((prev) =>
         prev.map((l) =>
           l.id === leadId
@@ -340,9 +342,10 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
                 devis,
                 echeancier,
                 statut:
-                  l.statut === "nouveau" ||
-                  l.statut === "a_qualifier" ||
-                  l.statut === "qualifie"
+                  advance &&
+                  (l.statut === "nouveau" ||
+                    l.statut === "a_qualifier" ||
+                    l.statut === "qualifie")
                     ? "devis_envoye"
                     : l.statut,
                 updated_at: now,
@@ -350,7 +353,11 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
             : l,
         ),
       );
-      pushActivite(leadId, "devis", `Devis ${devis.ref} enregistré (générateur)`);
+      pushActivite(
+        leadId,
+        "devis",
+        `Devis ${devis.ref} ${advance ? "validé" : "en brouillon"} (générateur)`,
+      );
     },
     [pushActivite],
   );

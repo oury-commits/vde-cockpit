@@ -1,43 +1,35 @@
-import type { Lead, Reseau } from "@/lib/types";
+import type { Entite, Lead, Reseau } from "@/lib/types";
 import type { CatalogueArticle } from "@/lib/catalogue/types";
 import { CATEGORIE_ORDER } from "@/lib/catalogue/meta";
 import { entiteConfig } from "@/lib/entite/config";
-import type { Entite } from "@/lib/types";
 import { uid } from "@/lib/uid";
 import { puVenteHt, round2, MARGE_DEFAUT } from "@/lib/devis/pricing";
 import type {
   AideLigne,
-  ConformitePoint,
   DevisConfig,
   DevisDraft,
   DevisLigne,
+  DevisSupplement,
+  ModeDevis,
 } from "@/lib/devis/types";
 
-// ── Contenu métier à valider ────────────────────────────────────────────────
-// TODO: brancher données réelles — les 6 points de conformité et les aides
-// ci-dessous sont une proposition à faire valider par Oury (montants Advenir,
-// libellés exacts) avant livraison MVP.
-
-export function defaultConformite(): ConformitePoint[] {
-  return [
-    { key: "compteur", label: "Puissance du compteur suffisante (kVA)", ok: false },
-    { key: "reseau", label: "Réseau (mono/tri) compatible avec la borne", ok: false },
-    { key: "terre", label: "Prise de terre < 100 Ω", ok: false },
-    { key: "tableau", label: "Tableau conforme / emplacement disjoncteur", ok: false },
-    { key: "cheminement", label: "Cheminement du câble praticable", ok: false },
-    { key: "consuel", label: "Attestation Consuel prévue", ok: false },
-  ];
-}
-
+// TODO: brancher données réelles — aides et barème à faire valider par Oury.
 export function defaultAides(entite: Entite): AideLigne[] {
-  if (entite === "MA") return []; // pas d'aide IRVE marocaine modélisée pour l'instant
+  if (entite === "MA") return [];
   return [
+    {
+      key: "grand_est",
+      label: "Aide Locale Grand Est",
+      actif: false,
+      montant: 1000,
+      note: "Subvention régionale — montant et éligibilité à confirmer",
+    },
     {
       key: "advenir",
       label: "Prime Advenir — résidentiel",
       actif: false,
       montant: 0,
-      note: "Montant à confirmer selon barème Advenir en vigueur",
+      note: "Montant selon barème Advenir en vigueur",
     },
     {
       key: "autre",
@@ -46,35 +38,6 @@ export function defaultAides(entite: Entite): AideLigne[] {
       montant: 0,
     },
   ];
-}
-
-function defaultConfig(): DevisConfig {
-  return {
-    borne_id: null,
-    reseau: "mono",
-    distance_m: 5,
-    pose_id: null,
-    tableau_id: null,
-    terre_id: null,
-    consuel: true,
-    schema: false,
-  };
-}
-
-export function emptyDraft(entite: Entite): DevisDraft {
-  return {
-    entite,
-    lead_id: null,
-    client: { nom: "", telephone: "", email: "", adresse: "", code_postal: "", ville: "" },
-    conformite: defaultConformite(),
-    aides: defaultAides(entite),
-    config: defaultConfig(),
-    supplements: [],
-    taux_marge: MARGE_DEFAUT,
-    mode_tva: entiteConfig(entite).tvaDefaut,
-    mode_paiement: "40_40_20",
-    notes: "",
-  };
 }
 
 /** Palier de pose Pn attendu pour une distance (m). 0-5→1 … >30→7. */
@@ -111,43 +74,89 @@ export function suggestPoseId(
   return match?.id ?? null;
 }
 
-/** Pré-remplit un devis depuis un lead (client + qualif → configuration). */
-export function draftFromLead(
-  lead: Lead,
+/** Borne adaptée à la puissance souhaitée + au réseau (mono/tri). */
+export function suggestBorneId(
+  articles: CatalogueArticle[],
+  reseau: Reseau,
+  puissance: string | null | undefined,
+): string | null {
+  const bornes = articles.filter((a) => a.categorie === "borne" && a.actif);
+  if (bornes.length === 0) return null;
+  const tri = reseau === "tri" || puissance === "11" || puissance === "22";
+  const triRe = /tri|22\s*kW|11\s*kW/i;
+  const pool = tri
+    ? bornes.filter((b) => triRe.test(b.designation))
+    : bornes.filter((b) => !triRe.test(b.designation));
+  const chosen = pool[0] ?? bornes[0];
+  return chosen?.id ?? null;
+}
+
+function baseConfig(): DevisConfig {
+  return {
+    borne_id: null,
+    reseau: "mono",
+    distance_m: 5,
+    pose_id: null,
+    tableau_id: null,
+    terre_id: null,
+    consuel: true,
+    schema: false,
+  };
+}
+
+/** Consommables « inclus par défaut » (visserie, disjoncteurs) en mode standard. */
+function standardSupplements(articles: CatalogueArticle[]): DevisSupplement[] {
+  return articles
+    .filter((a) => a.actif && a.inclus_defaut)
+    .map((a) => ({ article_id: a.id, quantite: 1 }));
+}
+
+/**
+ * Construit un brouillon de devis.
+ * - `standard` : compose automatiquement (borne, pose, consommables inclus).
+ * - `libre` : accès complet, pré-remplissage minimal.
+ */
+export function buildDraft(
+  mode: ModeDevis,
+  entite: Entite,
+  lead: Lead | null,
   articles: CatalogueArticle[],
 ): DevisDraft {
-  const base = emptyDraft(lead.entite);
-  const reseau: Reseau = lead.reseau ?? "mono";
-  const distance_m = lead.distance_tableau ?? 5;
+  const reseau: Reseau = lead?.reseau ?? "mono";
+  const distance_m = lead?.distance_tableau ?? 5;
 
   const config: DevisConfig = {
-    ...base.config,
+    ...baseConfig(),
     reseau,
     distance_m,
     pose_id: suggestPoseId(articles, reseau, distance_m),
   };
 
-  // Pré-cochage conformité depuis la qualif (ce qui est déductible).
-  const conformite = base.conformite.map((p) => {
-    if (p.key === "reseau" && lead.reseau) return { ...p, ok: true };
-    if (p.key === "compteur" && (lead.puissance_compteur_kva ?? 0) >= 6)
-      return { ...p, ok: true };
-    return p;
-  });
+  if (mode === "standard") {
+    config.borne_id = suggestBorneId(articles, reseau, lead?.puissance_souhaitee);
+  }
 
   return {
-    ...base,
-    lead_id: lead.id,
+    entite,
+    lead_id: lead?.id ?? null,
+    mode,
     client: {
-      nom: lead.nom ?? "",
-      telephone: lead.telephone ?? "",
-      email: lead.email ?? "",
-      adresse: lead.adresse ?? "",
-      code_postal: lead.code_postal ?? "",
-      ville: lead.ville ?? "",
+      nom: lead?.nom ?? "",
+      telephone: lead?.telephone ?? "",
+      email: lead?.email ?? "",
+      adresse: lead?.adresse ?? "",
+      code_postal: lead?.code_postal ?? "",
+      ville: lead?.ville ?? "",
     },
-    conformite,
+    controle_non_conformes: [],
+    aides: defaultAides(entite),
     config,
+    supplements: mode === "standard" ? standardSupplements(articles) : [],
+    taux_marge: MARGE_DEFAUT,
+    remise: 0,
+    mode_tva: entiteConfig(entite).tvaDefaut,
+    mode_paiement: "40_40_20",
+    notes: "",
   };
 }
 
@@ -204,7 +213,6 @@ export function deriveLignes(
     push(consuel?.id ?? null);
   }
 
-  // Suppléments, triés selon l'ordre des catégories du catalogue.
   const order = new Map(CATEGORIE_ORDER.map((c, i) => [c, i]));
   const sups = [...draft.supplements]
     .filter((s) => s.quantite > 0 && byId.has(s.article_id))

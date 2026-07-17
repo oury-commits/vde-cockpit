@@ -1,13 +1,15 @@
 "use client";
 
+import { AlertTriangle, Check, ShieldCheck } from "lucide-react";
 import { Field, Input } from "@/components/ui/Field";
-import { CheckRow } from "@/components/devis/atoms";
 import { useWizard } from "@/components/devis/context";
+import { cn } from "@/lib/cn";
 
 export function StepClient() {
-  const { draft, patchClient, toggleConformite } = useWizard();
+  const { draft, patchClient, controle, toggleControle } = useWizard();
   const c = draft.client;
-  const okCount = draft.conformite.filter((p) => p.ok).length;
+  const okCount = controle.filter((p) => p.conforme).length;
+  const conforme = okCount === controle.length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,21 +58,71 @@ export function StepClient() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">Conformité</h3>
-          <span className="font-mono text-xs text-muted">{okCount}/6</span>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <ShieldCheck className="size-4 text-brand" strokeWidth={1.75} />
+            Contrôle technique
+          </h3>
+          <span className="font-mono text-xs text-muted">
+            {okCount}/{controle.length} conformes
+          </span>
         </div>
-        <div className="flex flex-col gap-2">
-          {draft.conformite.map((p) => (
-            <CheckRow
-              key={p.key}
-              checked={p.ok}
-              onToggle={() => toggleConformite(p.key)}
-              label={p.label}
+
+        {!conforme ? (
+          <div className="mb-3 flex items-start gap-2 rounded-lg border border-alert/30 bg-alert/8 px-3 py-2.5">
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0 text-alert"
+              strokeWidth={2}
             />
+            <p className="text-sm font-medium text-alert">
+              Installation non conforme — ne pas installer. La validation du
+              devis est bloquée tant qu'un point est en erreur.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="overflow-hidden rounded-xl border border-line">
+          {controle.map((p, i) => (
+            <div
+              key={p.key}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5",
+                i > 0 && "border-t border-line",
+              )}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm text-ink">{p.label}</span>
+                <span className="block font-mono text-xs text-muted">
+                  {p.valeur}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => toggleControle(p.key)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                  p.conforme
+                    ? "bg-success/12 text-success hover:bg-success/20"
+                    : "bg-alert/12 text-alert hover:bg-alert/20",
+                )}
+              >
+                {p.conforme ? (
+                  <>
+                    <Check className="size-3" strokeWidth={3} /> OK
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="size-3" strokeWidth={2.5} /> ERREUR
+                  </>
+                )}
+              </button>
+            </div>
           ))}
         </div>
-        {/* TODO: brancher données réelles — liste des points de conformité à
-            valider avec Oury (proposition par défaut). */}
+        <p className="mt-2 text-[11px] text-muted">
+          Valeurs pré-calculées depuis le type d'installation. Attestation
+          Consuel obligatoire (IRVE &gt; 3,7 kW).
+        </p>
+        {/* TODO: brancher données réelles — barème de protections VDE à valider. */}
       </section>
     </div>
   );

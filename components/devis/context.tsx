@@ -5,6 +5,7 @@ import type { CatalogueArticle } from "@/lib/catalogue/types";
 import type { DevisTotaux } from "@/lib/devis/pricing";
 import type {
   AideLigne,
+  ControleLigne,
   DevisClient,
   DevisConfig,
   DevisDraft,
@@ -18,14 +19,16 @@ export interface WizardValue {
   articles: CatalogueArticle[];
   lignes: DevisLigne[];
   totaux: DevisTotaux;
+  /** Contrôle technique /6 dérivé de la configuration. */
+  controle: ControleLigne[];
   vue: VueDevis;
   setVue: (v: VueDevis) => void;
   patch: (partial: Partial<DevisDraft>) => void;
   patchClient: (partial: Partial<DevisClient>) => void;
   patchConfig: (partial: Partial<DevisConfig>) => void;
-  toggleConformite: (key: string) => void;
   patchAide: (key: string, partial: Partial<AideLigne>) => void;
   setSupplement: (articleId: string, quantite: number) => void;
+  toggleControle: (key: ControleLigne["key"]) => void;
 }
 
 export const WizardContext = createContext<WizardValue | null>(null);

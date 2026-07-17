@@ -59,6 +59,23 @@ export function StepSynthese() {
       </section>
 
       <section>
+        <h3 className="mb-3 text-sm font-semibold text-ink">
+          Réduction commerciale
+        </h3>
+        <Field label={`Montant remisé (HT, ${cfgEntite.symbole})`}>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            className="w-40 font-mono"
+            value={draft.remise || ""}
+            onChange={(e) => patch({ remise: Number(e.target.value) || 0 })}
+            placeholder="0"
+          />
+        </Field>
+      </section>
+
+      <section>
         <h3 className="mb-3 text-sm font-semibold text-ink">Paiement</h3>
         <Segmented
           value={draft.mode_paiement}
