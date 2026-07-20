@@ -17,12 +17,16 @@ import type {
   Echeance,
   Entite,
   Facture,
+  JalonKey,
   Lead,
   ModeTva,
   MotifPerte,
   Statut,
   StatutEcheance,
+  Visibilite,
 } from "@/lib/types";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { JALONS_MANUELS, jalonActif } from "@/lib/leads/jalons";
 import type { LeadDraft } from "@/lib/leads/csv";
 import { nextRef } from "@/lib/leads/ref";
 import {
@@ -35,7 +39,7 @@ import { buildDevis, buildEcheancier } from "@/lib/leads/devis";
 import { buildFacture } from "@/lib/leads/facture";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
-import { STATUT_META, isLeadProtege } from "@/lib/leads/meta";
+import { MEMBRES, STATUT_META, isLeadProtege } from "@/lib/leads/meta";
 import { formatDate } from "@/lib/format";
 import { uid } from "@/lib/uid";
 import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
@@ -68,6 +72,17 @@ interface StoreValue {
   archiveLead: (id: string) => void;
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
+  /** Note typée (appel / email / visite / note) avec portée interne ou client. */
+  addNote: (
+    leadId: string,
+    type: ActiviteType,
+    contenu: string,
+    visibilite: Visibilite,
+  ) => void;
+  /** Coche / décoche un jalon manuel — décocher laisse une trace « annulé ». */
+  toggleJalon: (leadId: string, jalon: JalonKey) => void;
+  /** Passe le dossier à un collègue (assignation + trace). */
+  transferer: (leadId: string, vers: string) => void;
   generateDevis: (leadId: string, mode?: ModeTva) => Promise<Devis | null>;
   /** Rattache un devis construit par le générateur (wizard) à un lead. */
   attachDevis: (leadId: string, devis: Devis, echeancier: Echeance[]) => void;
@@ -90,7 +105,16 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+/** Nom affiché de l'utilisateur courant, depuis son email de session. */
+function displayName(email: string | null): string {
+  if (!email) return MEMBRES[0]; // mode démo / auth désactivée
+  const local = email.split("@")[0];
+  const connu = MEMBRES.find((m) => m.toLowerCase() === local.toLowerCase());
+  return connu ?? local.charAt(0).toUpperCase() + local.slice(1);
+}
+
 export function LeadsStoreProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [loaded, setLoaded] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
@@ -124,21 +148,34 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     void getRepository().persistAll({ leads, activites });
   }, [loaded, leads, activites]);
 
+  // Rien d'anonyme : l'auteur est l'utilisateur connecté (fallback démo).
+  const auteur = useMemo(() => displayName(user?.email ?? null), [user?.email]);
+
   const pushActivite = useCallback(
-    (leadId: string, type: ActiviteType, contenu: string) => {
+    (
+      leadId: string,
+      type: ActiviteType,
+      contenu: string,
+      extra?: {
+        jalon?: JalonKey | null;
+        annule?: boolean;
+        visibilite?: Visibilite | null;
+      },
+    ) => {
       setActivites((prev) => [
         {
           id: uid(),
           lead_id: leadId,
           type,
           contenu,
-          auteur: "Oury",
+          auteur,
           created_at: new Date().toISOString(),
+          ...extra,
         },
         ...prev,
       ]);
     },
-    [],
+    [auteur],
   );
 
   const makeLead = useCallback(
@@ -294,6 +331,50 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       void getRepository().deleteLeads(target);
     },
     [leads],
+  );
+
+  const addNote = useCallback<StoreValue["addNote"]>(
+    (leadId, type, contenu, visibilite) => {
+      pushActivite(leadId, type, contenu, { visibilite });
+    },
+    [pushActivite],
+  );
+
+  const toggleJalon = useCallback<StoreValue["toggleJalon"]>(
+    (leadId, jalon) => {
+      const meta = JALONS_MANUELS.find((j) => j.key === jalon);
+      if (!meta) return;
+      const duLead = activites
+        .filter((a) => a.lead_id === leadId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const actif = jalonActif(duLead, jalon);
+      // Le type d'activité suit le jalon (icône cohérente dans la timeline).
+      const type: ActiviteType = jalon === "relance" ? "relance" : jalon;
+      pushActivite(
+        leadId,
+        type,
+        actif ? `${meta.fait} — annulé` : meta.fait,
+        { jalon, annule: actif },
+      );
+    },
+    [activites, pushActivite],
+  );
+
+  const transferer = useCallback<StoreValue["transferer"]>(
+    (leadId, vers) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead || lead.assigne_a === vers) return;
+      const de = lead.assigne_a ?? "non assigné";
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, assigne_a: vers, updated_at: new Date().toISOString() }
+            : l,
+        ),
+      );
+      pushActivite(leadId, "statut", `Dossier transféré de ${de} à ${vers}`);
+    },
+    [leads, pushActivite],
   );
 
   const archiveLead = useCallback<StoreValue["archiveLead"]>(
@@ -566,6 +647,9 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       archiveLead,
       changeStatut,
       addActivite: pushActivite,
+      addNote,
+      toggleJalon,
+      transferer,
       generateDevis,
       attachDevis,
       markDevisEnvoye,
@@ -588,6 +672,9 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       archiveLead,
       changeStatut,
       pushActivite,
+      addNote,
+      toggleJalon,
+      transferer,
       generateDevis,
       attachDevis,
       markDevisEnvoye,

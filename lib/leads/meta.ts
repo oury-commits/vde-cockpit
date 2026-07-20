@@ -1,8 +1,10 @@
 import type {
+  ActiviteType,
   Canal,
   Emplacement,
   Fixation,
   Lead,
+  Visibilite,
   MotifPerte,
   Occupation,
   Puissance,
@@ -129,3 +131,28 @@ export const PV_PROJET_LABEL: Record<PvProjet, string> = {
 
 /** Membres de l'équipe VDE France (assignation). */
 export const MEMBRES = ["Oury", "Shaima"] as const;
+
+/**
+ * Types de saisie dans l'historique. On ne confond jamais un mémo d'équipe
+ * (`interne`) avec un échange réellement tenu avec le client (`client`).
+ */
+export const NOTE_TYPES: {
+  key: string;
+  label: string;
+  type: ActiviteType;
+  visibilite: Visibilite;
+}[] = [
+  { key: "appel", label: "Appel", type: "appel", visibilite: "client" },
+  { key: "email", label: "Email", type: "email", visibilite: "client" },
+  { key: "visite", label: "Visite", type: "visite", visibilite: "client" },
+  { key: "interne", label: "Note interne", type: "note", visibilite: "interne" },
+  { key: "echange", label: "Échange client", type: "note", visibilite: "client" },
+];
+
+export const VISIBILITE_META: Record<
+  Visibilite,
+  { label: string; badge: string }
+> = {
+  interne: { label: "interne", badge: "bg-gold/20 text-gold-ink" },
+  client: { label: "client", badge: "bg-brand/10 text-brand" },
+};

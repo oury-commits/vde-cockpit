@@ -139,7 +139,17 @@ export interface Facture {
   envoye_a?: string | null;
 }
 
-/** Entrée horodatée de la timeline. */
+/**
+ * Jalons de suivi cochables manuellement. Les jalons « Devis signé / Acompte
+ * reçu / Installé » n'en font PAS partie : ils sont dérivés de l'état réel
+ * (devis, échéancier, statut) pour qu'une case ne contredise jamais le pipeline.
+ */
+export type JalonKey = "appel" | "email" | "visite" | "relance";
+
+/** Note interne (mémo équipe) vs échange réellement tenu avec le client. */
+export type Visibilite = "interne" | "client";
+
+/** Entrée horodatée de la timeline. Rien d'anonyme : auteur + date toujours. */
 export interface Activite {
   id: string;
   lead_id: string;
@@ -147,6 +157,12 @@ export interface Activite {
   contenu: string;
   auteur: string;
   created_at: string;
+  /** Jalon coché/décoché par cette entrée. */
+  jalon?: JalonKey | null;
+  /** true = cette entrée annule le jalon (décoché) — jamais d'effacement. */
+  annule?: boolean;
+  /** Portée d'une note : mémo interne ou échange client. */
+  visibilite?: Visibilite | null;
 }
 
 /** Un lead — cœur du CRM (§2). */
