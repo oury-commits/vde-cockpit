@@ -22,21 +22,76 @@ export const ROLE_LABEL: Record<Role, string> = {
   assistante: "Assistante",
 };
 
+export type Acces = "full" | "read" | "partial" | "none";
+
+export type ModuleKey =
+  | "dashboard"
+  | "leads"
+  | "prospects"
+  | "clients"
+  | "devis"
+  | "catalogue"
+  | "validation"
+  | "inbox"
+  | "planning"
+  | "mobile"
+  | "sav"
+  | "techniciens"
+  | "equipe"
+  | "rapports"
+  | "parametres";
+
+/**
+ * Clés dérogeables. `montants` n'est pas un écran : c'est la règle transverse
+ * « ce rôle ne voit jamais un montant ». On la rend dérogeable explicitement
+ * plutôt que de la contourner en ouvrant un module financier — sinon on
+ * obtiendrait un écran de devis aux chiffres masqués, donc inutilisable.
+ */
+export type OverrideKey = ModuleKey | "montants";
+
+/** Dérogations accordées à UNE personne, par-dessus la matrice de son rôle. */
+export type Overrides = Partial<Record<OverrideKey, Acces>>;
+
 /**
  * Identité applicative courante. En mode construction elle vient du sélecteur
  * dev ; une fois l'auth activée elle viendra de `profiles`.
  * `role`/`entite` à `null` = compte non assigné → deny by default, aucun accès.
  */
 export interface Identite {
+  /** Id du profil quand l'identité vient de l'équipe ; null en identité libre. */
+  id: string | null;
   nom: string;
   role: Role | null;
   entite: EntiteAcces | null;
   actif: boolean;
+  overrides: Overrides;
 }
 
-/** Profil persisté (table `profiles`, créée à l'activation de l'auth). */
-export interface Profile extends Identite {
+/** Profil persisté (table `profiles`). */
+export interface Profile {
   id: string;
   email: string;
+  nom: string;
+  role: Role | null;
+  entite: EntiteAcces | null;
+  actif: boolean;
+  overrides: Overrides;
+  /** Compte de démonstration — jamais un vrai salarié. */
+  demo: boolean;
+  /** Traçabilité des droits : qui a modifié, et quand. */
+  modifie_par: string | null;
+  modifie_le: string | null;
   created_at: string;
+}
+
+/** Identité dérivée d'un profil — le profil est la source de vérité. */
+export function identiteDeProfil(p: Profile): Identite {
+  return {
+    id: p.id,
+    nom: p.nom,
+    role: p.role,
+    entite: p.entite,
+    actif: p.actif,
+    overrides: p.overrides,
+  };
 }

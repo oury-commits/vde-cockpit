@@ -8,6 +8,7 @@ import {
   Sparkles,
   Inbox,
   CalendarDays,
+  Route,
   Wrench,
   UsersRound,
   ChartColumn,
@@ -19,6 +20,8 @@ export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Libellé court pour la barre mobile (sinon : premier mot du label). */
+  shortLabel?: string;
   /** Compteur optionnel (ex. file de validation IA). */
   badge?: number;
 }
@@ -57,6 +60,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       { label: "Boîte de réception", href: "/inbox", icon: Inbox },
       { label: "Planning & tournées", href: "/planning", icon: CalendarDays },
+      { label: "Ma tournée", href: "/mobile", icon: Route, shortLabel: "Tournée" },
       { label: "SAV", href: "/sav", icon: Wrench },
     ],
   },
@@ -70,11 +74,22 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+/**
+ * Recherche par route, et pas par index : insérer une entrée dans une section
+ * décalait silencieusement la barre mobile vers le mauvais écran.
+ */
+function parRoute(href: string): NavItem {
+  const item = NAV_SECTIONS.flatMap((s) => s.items).find((i) => i.href === href);
+  if (!item) throw new Error(`nav : aucune entrée pour ${href}`);
+  return item;
+}
+
 /** Éléments mis en avant dans la barre de navigation mobile. */
 export const MOBILE_NAV: NavItem[] = [
-  NAV_SECTIONS[0].items[0], // Tableau de bord
-  NAV_SECTIONS[1].items[0], // Leads
-  NAV_SECTIONS[2].items[0], // File de validation IA
-  NAV_SECTIONS[1].items[2], // Clients
-  NAV_SECTIONS[3].items[2], // Paramètres
+  parRoute("/dashboard"),
+  parRoute("/leads"),
+  parRoute("/validation"),
+  parRoute("/mobile"), // nav principale du technicien
+  parRoute("/clients"),
+  parRoute("/parametres"),
 ];

@@ -95,12 +95,29 @@ serveur, pas sur un calcul client.
 
 ### 8. Technicien : « uniquement sa propre tournée » — à re-tester quand le module existera
 
-Vérifié en P1 : le technicien n'a accès qu'à Clients / Planning & tournées / SAV,
-`/dashboard` le renvoie sur `/planning`, et il ne voit **aucun montant**. Mais
-Planning / SAV / Clients sont encore des placeholders (0 enregistrement) : le
-cloisonnement *par technicien* (`technicien_id = utilisateur courant`) ne peut
-pas être prouvé sur des données aujourd'hui. À câbler **avec** la vue mobile P2
-et à verrouiller par RLS en P3 — ne pas considérer ce point comme acquis.
+Levé en P2. `/mobile` filtre sur `technicien_id = profil courant` et la recette
+le prouve sur données : Julien voit ses 3 interventions, Damien ses 2, Karim
+ses 2 — aucun ne voit celles d'un autre, et aucun montant n'apparaît. Le modèle
+`interventions` ne porte d'ailleurs aucun prix, donc il n'y a rien à masquer.
+
+Reste dû : ce filtre est appliqué côté client. Il doit être redoublé en RLS
+(P3), sans quoi une requête directe contournerait l'écran.
+
+### 9. P3 — RLS : le seul verrou dur (non repoussable)
+
+Rappel de cadrage : P1 et P2 sont un modèle fonctionnel de construction. Tout
+le cloisonnement (entité, rôle, dérogations, tournée) est appliqué par
+l'interface. **Aucun compte salarié avec de vraies données avant P3.**
+
+À poser : policies par opération, `to authenticated`, deny by default, helpers
+`SECURITY DEFINER` avec `search_path=''`, filtre entité via
+`(select current_app_entite())`, et `technicien_id = auth.uid()` sur
+`interventions`. Les tables `profiles` et `interventions` sont déjà créées avec
+RLS activée **et aucune policy** (migration 0014) : tout est refusé tant que P3
+n'est pas écrite — c'est voulu.
+
+Numérotation : `0013` est pris par le verrou optimiste et `0014` par
+profils/interventions. La migration RLS sera donc `0015`.
 
 ---
 

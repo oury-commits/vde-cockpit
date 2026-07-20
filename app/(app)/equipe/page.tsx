@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { EquipeScreen } from "@/components/equipe/EquipeScreen";
 
 export default function Page() {
-  return <ComingSoon />;
+  return <EquipeScreen />;
 }
