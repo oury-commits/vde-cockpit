@@ -28,8 +28,7 @@ export function DevisPreview() {
       ? "TVA — autoliquidation"
       : `TVA ${new Intl.NumberFormat("fr-FR").format(totaux.taux_tva * 100)} %`;
 
-  const echeances = buildEcheancierPaiement(totaux.montant_ttc, draft.mode_paiement);
-  const aidesActives = draft.aides.filter((a) => a.actif && a.montant > 0);
+  const echeances = buildEcheancierPaiement(totaux.montant_ttc, draft.mode_paiement);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
@@ -108,24 +107,8 @@ export function DevisPreview() {
             label={tvaLabel}
             value={m(totaux.montant_tva)}
           />
+          {/* Aucune aide déduite : le TTC est le montant dû par le client. */}
           <Row label="Total TTC" value={m(totaux.montant_ttc)} strong />
-          {aidesActives.length > 0 ? (
-            <>
-              {aidesActives.map((a) => (
-                <Row
-                  key={a.key}
-                  label={a.label}
-                  value={`− ${m(a.montant)}`}
-                  tone="gold"
-                />
-              ))}
-              <Row
-                label="Reste à charge"
-                value={m(totaux.reste_a_charge)}
-                strong
-              />
-            </>
-          ) : null}
         </div>
 
         {opt.mention ? (
