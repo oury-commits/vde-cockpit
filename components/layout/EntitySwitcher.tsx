@@ -11,10 +11,21 @@ const OPTIONS: { value: ActiveEntite; label: string }[] = [
 
 /**
  * Sélecteur d'entité global. Filtre tout (leads, clients, devis, KPI). Mémorisé.
- * « Tous » est une vue de consolidation — TODO: réserver au rôle admin (Jalon 2).
+ * « Tous » est une vue de consolidation réservée à l'admin : un utilisateur
+ * mono-entité ne voit pas le sélecteur, seulement son pays (non modifiable).
  */
 export function EntitySwitcher() {
-  const { active, setActive } = useEntity();
+  const { active, setActive, verrouille } = useEntity();
+
+  if (verrouille) {
+    const courant = OPTIONS.find((o) => o.value === active);
+    return (
+      <span className="flex shrink-0 items-center rounded-lg bg-cream px-2.5 py-1.5 text-xs font-semibold tracking-[0.03em] text-brand">
+        {courant?.label ?? active}
+      </span>
+    );
+  }
+
   return (
     <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-cream p-[3px]">
       {OPTIONS.map((o) => (

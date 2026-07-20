@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import type {
   Emplacement,
   Fixation,
@@ -49,16 +50,34 @@ export function EditLeadDialog({
 }) {
   const store = useLeadsStore();
   const [form, setForm] = useState<Lead>(lead);
+  const [conflit, setConflit] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const set = <K extends keyof Lead>(key: K, value: Lead[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
   const num = (v: string) => (v === "" ? null : Number(v));
 
-  const save = () => {
+  // Version lue à l'ouverture : c'est elle qu'on oppose au moment d'écrire.
+  const [versionLue] = useState(lead.version ?? 0);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    setConflit(null);
     const patch: Partial<Lead> = {
       ...form,
       temperature: scoreTemperature(form),
     };
-    store.updateLead(lead.id, patch);
+    const res = await store.updateLead(lead.id, patch, versionLue);
+    setBusy(false);
+    if (!res.ok) {
+      // Message volontairement générique : devis et facture vivant sur la même
+      // ligne que le lead, la collision peut venir de n'importe quelle zone du
+      // dossier — « ce devis » serait faux.
+      setConflit(
+        `Ce dossier a été modifié par ${res.auteur ?? "un collègue"} pendant ta saisie. Recharge pour voir ses changements — rien n'a été écrasé.`,
+      );
+      return;
+    }
     onClose();
   };
 
@@ -74,12 +93,31 @@ export function EditLeadDialog({
           <Button variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button onClick={save} disabled={!form.nom.trim() || !form.telephone.trim()}>
-            Enregistrer
+          <Button
+            onClick={save}
+            disabled={busy || !form.nom.trim() || !form.telephone.trim()}
+          >
+            {busy ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </>
       }
     >
+      {conflit ? (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-alert/30 bg-alert/8 px-3 py-2.5">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-alert" strokeWidth={2} />
+          <div className="text-sm">
+            <p className="font-medium text-alert">{conflit}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-1 font-medium text-brand underline"
+            >
+              Recharger le dossier
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <Section title="Contact">
         <Field label="Nom">
           <Input value={form.nom} onChange={(e) => set("nom", e.target.value)} />

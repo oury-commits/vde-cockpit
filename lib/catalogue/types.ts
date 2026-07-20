@@ -41,6 +41,9 @@ export interface CatalogueArticle {
   /** Inclus par défaut dans un devis standard (visserie, disjoncteurs…). */
   inclus_defaut: boolean;
   note?: string | null;
+  /** Verrou optimiste multi-utilisateur (même principe que leads.version). */
+  version?: number;
+  modifie_par?: string | null;
   created_at: string;
   updated_at: string;
 }

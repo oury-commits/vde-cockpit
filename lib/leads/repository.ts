@@ -14,10 +14,27 @@ export interface Persisted {
  * `local` (localStorage, Phase 2A) et `supabase` (Phase 2B). La bascule est
  * automatique dès que les clés Supabase sont présentes (.env.local).
  */
+/** Résultat d'une écriture sous verrou optimiste. */
+export type EcritureGardee =
+  | { ok: true; lead: Lead }
+  | { ok: false; auteur: string | null };
+
 export interface LeadsRepository {
   readonly kind: "local" | "supabase";
   loadAll(): Promise<Persisted>;
   persistAll(state: Persisted): Promise<void>;
+  /**
+   * Écriture d'un lead sous verrou optimiste : n'écrit que si la version
+   * persistée est bien celle qui a été lue. Sinon → conflit, on n'écrase pas.
+   * Lit/écrit la SOURCE PERSISTÉE (pas l'état React) : c'est ce qui permet de
+   * détecter un collègue qui a enregistré depuis un autre onglet/poste.
+   */
+  updateLeadGuarded(
+    id: string,
+    patch: Partial<Lead>,
+    versionAttendue: number,
+    auteur: string,
+  ): Promise<EcritureGardee>;
   /** Suppression définitive (local : couvert par persistAll ; Supabase : DELETE). */
   deleteLead(id: string): Promise<void>;
   deleteLeads(ids: string[]): Promise<void>;
@@ -64,6 +81,41 @@ class LocalRepository implements LeadsRepository {
     }
   }
 
+  /** Read-modify-write sur le blob persisté → détecte un autre onglet. */
+  async updateLeadGuarded(
+    id: string,
+    patch: Partial<Lead>,
+    versionAttendue: number,
+    auteur: string,
+  ): Promise<EcritureGardee> {
+    let state: Persisted;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      state = raw ? (JSON.parse(raw) as Persisted) : { leads: [], activites: [] };
+    } catch {
+      return { ok: false, auteur: null };
+    }
+    const courant = state.leads.find((l) => l.id === id);
+    if (!courant) return { ok: false, auteur: null };
+    if ((courant.version ?? 0) !== versionAttendue) {
+      return { ok: false, auteur: courant.modifie_par ?? null };
+    }
+    const lead: Lead = {
+      ...courant,
+      ...patch,
+      version: versionAttendue + 1,
+      modifie_par: auteur,
+      updated_at: new Date().toISOString(),
+    };
+    state.leads = state.leads.map((l) => (l.id === id ? lead : l));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      return { ok: false, auteur: null };
+    }
+    return { ok: true, lead };
+  }
+
   async deleteLead(): Promise<void> {
     // La suppression est reflétée par persistAll (réécriture complète).
   }
@@ -96,6 +148,38 @@ class SupabaseRepository implements LeadsRepository {
     // chaque changement suffit au volume actuel mais n'est pas optimal.
     if (state.leads.length) await sb.from("leads").upsert(state.leads);
     if (state.activites.length) await sb.from("activites").upsert(state.activites);
+  }
+
+  /** UPDATE … WHERE version = :lue → 0 ligne = quelqu'un est passé avant. */
+  async updateLeadGuarded(
+    id: string,
+    patch: Partial<Lead>,
+    versionAttendue: number,
+    auteur: string,
+  ): Promise<EcritureGardee> {
+    const sb = getSupabase();
+    if (!sb) return { ok: false, auteur: null };
+    const { data, error } = await sb
+      .from("leads")
+      .update({
+        ...patch,
+        version: versionAttendue + 1,
+        modifie_par: auteur,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("version", versionAttendue)
+      .select()
+      .maybeSingle();
+
+    if (!error && data) return { ok: true, lead: data as Lead };
+    // Aucune ligne touchée : on relit pour dire QUI a modifié entre-temps.
+    const { data: actuel } = await sb
+      .from("leads")
+      .select("modifie_par")
+      .eq("id", id)
+      .maybeSingle();
+    return { ok: false, auteur: (actuel as { modifie_par?: string } | null)?.modifie_par ?? null };
   }
 
   async deleteLead(id: string): Promise<void> {

@@ -82,7 +82,7 @@ export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
       setArticles((prev) =>
         prev.map((a) =>
           a.id === id
-            ? { ...a, ...patch, updated_at: new Date().toISOString() }
+            ? { ...a, ...patch, version: (a.version ?? 0) + 1, updated_at: new Date().toISOString() }
             : a,
         ),
       );
