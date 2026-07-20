@@ -26,6 +26,8 @@ interface FormState {
   unite: Unite;
   cout_ht: string; // EUR (base)
   cout_ma: string; // MAD override (vide = dérivé)
+  url_produit: string;
+  afficher_qr: boolean;
   a_confirmer: boolean;
   inclus_defaut: boolean;
   actif: boolean;
@@ -39,6 +41,8 @@ function initial(article: CatalogueArticle | null | undefined): FormState {
     unite: article?.unite ?? "u",
     cout_ht: article ? String(article.cout_ht) : "",
     cout_ma: article?.cout_ma != null ? String(article.cout_ma) : "",
+    url_produit: article?.url_produit ?? "",
+    afficher_qr: article?.afficher_qr ?? false,
     a_confirmer: article?.a_confirmer ?? false,
     inclus_defaut: article?.inclus_defaut ?? false,
     actif: article?.actif ?? true,
@@ -90,6 +94,10 @@ export function ArticleDialog({
       unite: form.unite,
       cout_ht: cout,
       cout_ma: coutMa,
+      url_produit: form.url_produit.trim() || null,
+      // Le QR ne vaut que pour une borne (règle métier) — on ne stocke pas un
+      // drapeau trompeur sur les autres catégories.
+      afficher_qr: form.categorie === "borne" ? form.afficher_qr : false,
       a_confirmer: form.a_confirmer,
       inclus_defaut: form.inclus_defaut,
       note: form.note.trim() || null,
@@ -206,6 +214,37 @@ export function ArticleDialog({
                 : "Prix surchargé (ignore le taux)"}
             </span>
           </div>
+        </div>
+
+        <div>
+          <label className={LABEL} htmlFor="art-url">
+            URL fiche produit (optionnel)
+          </label>
+          <input
+            id="art-url"
+            type="url"
+            inputMode="url"
+            className={FIELD}
+            value={form.url_produit}
+            onChange={(e) => set("url_produit", e.target.value)}
+            placeholder="https://www.visiondigitalenergies.fr/produits/…"
+          />
+          {form.categorie === "borne" ? (
+            <label className="mt-2 flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                className="size-4 accent-brand"
+                checked={form.afficher_qr}
+                onChange={(e) => set("afficher_qr", e.target.checked)}
+                disabled={!form.url_produit.trim()}
+              />
+              Afficher le QR sur le devis
+            </label>
+          ) : (
+            <span className="mt-1 block text-[11px] text-muted">
+              Le QR n&apos;est affiché sur le devis que pour les bornes.
+            </span>
+          )}
         </div>
 
         <div>

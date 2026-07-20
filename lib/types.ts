@@ -95,6 +95,10 @@ export interface LigneDevis {
   label: string;
   /** Montant HT de la ligne, en euros. */
   montant_ht: number;
+  /** Fiche produit à encoder en QR sur le PDF (bornes uniquement). */
+  url_produit?: string | null;
+  /** Catégorie catalogue d'origine (sert au modèle d'email : « votre borne »). */
+  categorie?: string | null;
 }
 
 /** Devis lié à un lead. Devise, TVA et numérotation suivent l'entité. */
@@ -110,6 +114,10 @@ export interface Devis {
   montant_tva: number;
   montant_ttc: number;
   statut: "brouillon" | "envoye" | "signe";
+  /** Horodatage de l'envoi au client (null tant que non envoyé). */
+  envoye_le?: string | null;
+  /** Destinataire du dernier envoi. */
+  envoye_a?: string | null;
 }
 
 /** Facture — issue d'un devis signé. Numérotation continue par entité. */
@@ -125,6 +133,10 @@ export interface Facture {
   taux_tva: number;
   montant_tva: number;
   montant_ttc: number;
+  /** Horodatage de l'envoi au client (null tant que non envoyée). */
+  envoye_le?: string | null;
+  /** Destinataire du dernier envoi. */
+  envoye_a?: string | null;
 }
 
 /** Entrée horodatée de la timeline. */

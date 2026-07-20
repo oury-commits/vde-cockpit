@@ -93,7 +93,7 @@ export function LeadDrawer({
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id);
-    if (devis) generateDevisPdf(lead, devis);
+    if (devis) await generateDevisPdf(lead, devis);
   };
 
   return (
@@ -196,7 +196,7 @@ export function LeadDrawer({
               size="sm"
               variant="secondary"
               icon={Download}
-              onClick={() => generateDevisPdf(lead, lead.devis!)}
+              onClick={() => void generateDevisPdf(lead, lead.devis!)}
             >
               Télécharger le PDF
             </Button>

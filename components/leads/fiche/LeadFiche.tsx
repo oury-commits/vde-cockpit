@@ -15,6 +15,7 @@ import {
   Phone,
   Plus,
   Receipt,
+  Send,
   SlidersHorizontal,
   Sun,
   Trash2,
@@ -45,6 +46,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Field";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
+import { EnvoiDialog } from "@/components/leads/EnvoiDialog";
 import { Timeline } from "@/components/leads/Timeline";
 import { EditLeadDialog } from "@/components/leads/fiche/EditLeadDialog";
 import { cn } from "@/lib/cn";
@@ -129,6 +131,7 @@ export function LeadFiche() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [note, setNote] = useState("");
   const [tvaMode, setTvaMode] = useState<ModeTva | "">("");
+  const [envoi, setEnvoi] = useState<"devis" | "facture" | null>(null);
 
   const faisabilite = useMemo(
     () => (lead ? computeFaisabilite(lead) : null),
@@ -161,7 +164,7 @@ export function LeadFiche() {
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id, tvaMode || undefined);
-    if (devis) generateDevisPdf(lead, devis);
+    if (devis) await generateDevisPdf(lead, devis);
   };
   const onConvertFacture = async () => {
     const facture = await store.generateFacture(lead.id);
@@ -379,10 +382,22 @@ export function LeadFiche() {
                   {formatMontant(lead.devis.montant_ttc, lead.devis.devise, { cents: true })}
                 </span>
               </div>
+              {lead.devis.envoye_le ? (
+                <p className="mt-2 text-[11px] text-muted">
+                  Envoyé le {formatDate(lead.devis.envoye_le)}
+                  {lead.devis.envoye_a ? ` à ${lead.devis.envoye_a}` : ""}
+                </p>
+              ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" icon={Download} onClick={() => generateDevisPdf(lead, lead.devis!)}>
+                <Button size="sm" variant="secondary" icon={Download} onClick={() => void generateDevisPdf(lead, lead.devis!)}>
                   Voir le PDF
                 </Button>
+                {/* Jamais sur un brouillon : un devis s'envoie une fois validé. */}
+                {lead.devis.statut !== "brouillon" ? (
+                  <Button size="sm" variant="secondary" icon={Send} onClick={() => setEnvoi("devis")}>
+                    Envoyer au client
+                  </Button>
+                ) : null}
                 {lead.devis.statut !== "signe" ? (
                   <Button size="sm" icon={PenLine} onClick={() => store.signDevis(lead.id)}>
                     Marquer signé
@@ -434,6 +449,21 @@ export function LeadFiche() {
                   {formatMontant(lead.facture.montant_ttc, lead.facture.devise, { cents: true })}
                 </span>
               </div>
+              {lead.facture.envoye_le ? (
+                <p className="mt-2 text-[11px] text-muted">
+                  Envoyée le {formatDate(lead.facture.envoye_le)}
+                  {lead.facture.envoye_a ? ` à ${lead.facture.envoye_a}` : ""}
+                </p>
+              ) : null}
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Send}
+                className="mt-3 mr-2"
+                onClick={() => setEnvoi("facture")}
+              >
+                Envoyer au client
+              </Button>
               <Button
                 size="sm"
                 variant="secondary"
@@ -496,6 +526,16 @@ export function LeadFiche() {
           <span className="font-mono">{lead.id}</span>) et tout son historique ? Cette action est irréversible.
         </p>
       </Modal>
+
+      {/* Envoi du document au client (devis validé / facture) */}
+      {envoi ? (
+        <EnvoiDialog
+          open
+          onClose={() => setEnvoi(null)}
+          lead={lead}
+          kind={envoi}
+        />
+      ) : null}
     </div>
   );
 }

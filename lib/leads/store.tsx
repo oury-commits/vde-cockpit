@@ -36,6 +36,7 @@ import { buildFacture } from "@/lib/leads/facture";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
 import { STATUT_META, isLeadProtege } from "@/lib/leads/meta";
+import { formatDate } from "@/lib/format";
 import { uid } from "@/lib/uid";
 import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
 
@@ -71,6 +72,12 @@ interface StoreValue {
   /** Rattache un devis construit par le générateur (wizard) à un lead. */
   attachDevis: (leadId: string, devis: Devis, echeancier: Echeance[]) => void;
   markDevisEnvoye: (leadId: string) => void;
+  /** Trace l'envoi d'un document au client (horodatage + statut + timeline). */
+  recordEnvoi: (
+    leadId: string,
+    kind: "devis" | "facture",
+    email: string,
+  ) => void;
   signDevis: (leadId: string) => void;
   generateFacture: (leadId: string) => Promise<Facture | null>;
   setEcheanceStatut: (
@@ -391,6 +398,56 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [pushActivite],
   );
 
+  const recordEnvoi = useCallback<StoreValue["recordEnvoi"]>(
+    (leadId, kind, email) => {
+      const lead = leads.find((l) => l.id === leadId);
+      const doc = kind === "devis" ? lead?.devis : lead?.facture;
+      if (!lead || !doc) return;
+      const now = new Date().toISOString();
+
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id !== leadId) return l;
+          if (kind === "devis" && l.devis) {
+            return {
+              ...l,
+              devis: {
+                ...l.devis,
+                // Un devis signé ne redescend pas à « envoyé ».
+                statut: l.devis.statut === "signe" ? "signe" : "envoye",
+                envoye_le: now,
+                envoye_a: email,
+              },
+              statut:
+                l.statut === "nouveau" ||
+                l.statut === "a_qualifier" ||
+                l.statut === "qualifie"
+                  ? "devis_envoye"
+                  : l.statut,
+              updated_at: now,
+            };
+          }
+          if (kind === "facture" && l.facture) {
+            return {
+              ...l,
+              facture: { ...l.facture, envoye_le: now, envoye_a: email },
+              updated_at: now,
+            };
+          }
+          return l;
+        }),
+      );
+
+      // Alimente les relances (« envoyé, pas de réponse à J+2 »).
+      pushActivite(
+        leadId,
+        "devis",
+        `${kind === "devis" ? "Devis" : "Facture"} ${doc.ref} envoyé à ${email} le ${formatDate(now)}`,
+      );
+    },
+    [leads, pushActivite],
+  );
+
   const markDevisEnvoye = useCallback<StoreValue["markDevisEnvoye"]>(
     (leadId) => {
       setLeads((prev) =>
@@ -512,6 +569,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       generateDevis,
       attachDevis,
       markDevisEnvoye,
+      recordEnvoi,
       signDevis,
       generateFacture,
       setEcheanceStatut,
@@ -533,6 +591,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       generateDevis,
       attachDevis,
       markDevisEnvoye,
+      recordEnvoi,
       signDevis,
       generateFacture,
       setEcheanceStatut,

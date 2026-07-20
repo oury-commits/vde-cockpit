@@ -26,6 +26,14 @@ export interface CatalogueArticle {
    * (taux paramétrable). Renseigné → prix figé pour l'entité MA.
    */
   cout_ma?: number | null;
+  /** Fiche produit sur le site VDE (ex. .../produits/v2c-trydan). */
+  url_produit?: string | null;
+  /**
+   * Afficher le QR de la fiche produit sur le devis.
+   * Effectif uniquement sur la catégorie `borne` (réassurance client) —
+   * jamais de QR sur la pose ou les consommables.
+   */
+  afficher_qr?: boolean;
   entite: Entite;
   actif: boolean;
   /** Prix marqué (?) dans le catalogue reconstitué — à valider par Oury. */

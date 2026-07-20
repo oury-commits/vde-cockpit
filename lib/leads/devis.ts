@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import type { Devis, Echeance, Entite, Lead, ModeTva } from "@/lib/types";
 import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
+import { QR_LABEL, qrDataUrl } from "@/lib/devis/qr";
 import { buildLignes } from "@/lib/leads/pricing";
 
 export { buildLignes } from "@/lib/leads/pricing";
@@ -87,11 +88,11 @@ export interface DevisPdfClient {
  * Helvetica (standard PDF) : les règles de police UI ne s'appliquent pas ici.
  * L'échéancier peut être fourni (mode 50/50 ou 40/40/20) ; sinon 40/40/20.
  */
-export function generateDevisPdf(
+async function buildDevisDoc(
   client: DevisPdfClient,
   devis: Devis,
   echeancier?: Echeance[],
-): void {
+): Promise<jsPDF> {
   const cfg = entiteConfig(devis.entite);
   const opt = optionTva(devis.entite, devis.mode_tva);
   const eur = (n: number) => formatMontant(n, devis.devise, { cents: true });
@@ -154,6 +155,21 @@ export function generateDevisPdf(
     doc.text(ligne.label, mx, y);
     doc.text(eur(ligne.montant_ht), pageW - mx, y, { align: "right" });
     y += 7;
+    // QR de la fiche produit (bornes uniquement — décidé à la dérivation).
+    if (ligne.url_produit) {
+      try {
+        const png = await qrDataUrl(ligne.url_produit, 240);
+        doc.addImage(png, "PNG", mx, y, 20, 20);
+        doc.setFontSize(8);
+        doc.setTextColor(...MUTED);
+        doc.text(QR_LABEL, mx + 23, y + 11);
+        doc.setFontSize(10);
+        doc.setTextColor(...INK);
+        y += 24;
+      } catch {
+        /* QR indisponible : le devis reste valide sans lui */
+      }
+    }
   }
 
   // Totaux
@@ -211,5 +227,25 @@ export function generateDevisPdf(
     y,
   );
 
+  return doc;
+}
+
+/** Génère le PDF et déclenche le téléchargement (client only). */
+export async function generateDevisPdf(
+  client: DevisPdfClient,
+  devis: Devis,
+  echeancier?: Echeance[],
+): Promise<void> {
+  const doc = await buildDevisDoc(client, devis, echeancier);
   doc.save(`${devis.ref}.pdf`);
+}
+
+/** Même PDF, en Blob — pour dépôt sur Supabase Storage (envoi client). */
+export async function devisPdfBlob(
+  client: DevisPdfClient,
+  devis: Devis,
+  echeancier?: Echeance[],
+): Promise<Blob> {
+  const doc = await buildDevisDoc(client, devis, echeancier);
+  return doc.output("blob");
 }

@@ -26,6 +26,12 @@ export interface DevisLigne {
   taux_marge: number; // marge sur PV appliquée à cette ligne
   pu_ht: number; // PU vente HT dérivé = cout_ht / (1 − marge)
   total_ht: number; // pu_ht × quantite
+  /**
+   * URL de la fiche produit à encoder en QR sur le devis. Renseignée UNIQUEMENT
+   * pour une borne dont le QR est activé — la règle est tranchée à la dérivation
+   * (voir deriveLignes), l'aperçu et le PDF n'ont plus qu'à la lire.
+   */
+  url_produit?: string | null;
 }
 
 /** Contrôle technique /6 (sécurité électrique IRVE). */

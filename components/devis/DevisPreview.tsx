@@ -2,6 +2,7 @@
 
 import { useWizard } from "@/components/devis/context";
 import { Segmented } from "@/components/devis/atoms";
+import { QrProduit } from "@/components/devis/QrProduit";
 import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
@@ -88,6 +89,7 @@ export function DevisPreview() {
                     <span>PU {m(l.pu_ht)}</span>
                   </div>
                 ) : null}
+                {l.url_produit ? <QrProduit url={l.url_produit} /> : null}
               </li>
             ))}
           </ul>

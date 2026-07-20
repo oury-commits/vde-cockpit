@@ -189,6 +189,11 @@ function ligneFromArticle(
   cout: number,
 ): DevisLigne {
   const pu = puVenteHt(cout, marge);
+  // QR réservé aux bornes (réassurance client) : jamais sur pose/consommables.
+  const url_produit =
+    article.categorie === "borne" && article.afficher_qr && article.url_produit
+      ? article.url_produit
+      : null;
   return {
     id: uid(),
     article_id: article.id,
@@ -200,6 +205,7 @@ function ligneFromArticle(
     taux_marge: marge,
     pu_ht: pu,
     total_ht: round2(pu * quantite),
+    url_produit,
   };
 }
 
