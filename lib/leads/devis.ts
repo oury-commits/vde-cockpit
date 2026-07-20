@@ -88,11 +88,11 @@ export interface DevisPdfClient {
  * Helvetica (standard PDF) : les règles de police UI ne s'appliquent pas ici.
  * L'échéancier peut être fourni (mode 50/50 ou 40/40/20) ; sinon 40/40/20.
  */
-export async function generateDevisPdf(
+async function buildDevisDoc(
   client: DevisPdfClient,
   devis: Devis,
   echeancier?: Echeance[],
-): Promise<void> {
+): Promise<jsPDF> {
   const cfg = entiteConfig(devis.entite);
   const opt = optionTva(devis.entite, devis.mode_tva);
   const eur = (n: number) => formatMontant(n, devis.devise, { cents: true });
@@ -227,5 +227,25 @@ export async function generateDevisPdf(
     y,
   );
 
+  return doc;
+}
+
+/** Génère le PDF et déclenche le téléchargement (client only). */
+export async function generateDevisPdf(
+  client: DevisPdfClient,
+  devis: Devis,
+  echeancier?: Echeance[],
+): Promise<void> {
+  const doc = await buildDevisDoc(client, devis, echeancier);
   doc.save(`${devis.ref}.pdf`);
+}
+
+/** Même PDF, en Blob — pour dépôt sur Supabase Storage (envoi client). */
+export async function devisPdfBlob(
+  client: DevisPdfClient,
+  devis: Devis,
+  echeancier?: Echeance[],
+): Promise<Blob> {
+  const doc = await buildDevisDoc(client, devis, echeancier);
+  return doc.output("blob");
 }

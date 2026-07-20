@@ -41,8 +41,7 @@ const MUTED: [number, number, number] = [92, 107, 99];
 
 const ECHEANCE_LABEL = ["Acompte à la commande", "Démarrage des travaux", "Solde à la réception"];
 
-/** PDF de facture — mentions légales et devise de l'entité. Client only. */
-export function generateFacturePdf(lead: Lead, facture: Facture): void {
+function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   const cfg = entiteConfig(facture.entite);
   const opt = optionTva(facture.entite, facture.mode_tva);
   const m = (n: number) => formatMontant(n, facture.devise, { cents: true });
@@ -150,5 +149,15 @@ export function generateFacturePdf(lead: Lead, facture: Facture): void {
   }
   doc.text("Facture de démonstration — mentions légales à valider avant émission réelle.", mx, y);
 
-  doc.save(`${facture.ref}.pdf`);
+  return doc;
+}
+
+/** PDF de facture — mentions légales et devise de l'entité. Client only. */
+export function generateFacturePdf(lead: Lead, facture: Facture): void {
+  buildFactureDoc(lead, facture).save(`${facture.ref}.pdf`);
+}
+
+/** Même PDF, en Blob — pour dépôt sur Supabase Storage (envoi client). */
+export function facturePdfBlob(lead: Lead, facture: Facture): Blob {
+  return buildFactureDoc(lead, facture).output("blob");
 }

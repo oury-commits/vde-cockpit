@@ -1,4 +1,4 @@
-import type { Devis } from "@/lib/types";
+import type { Devis, LigneDevis } from "@/lib/types";
 import { entiteConfig } from "@/lib/entite/config";
 import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import type { DevisDraft, DevisLigne } from "@/lib/devis/types";
@@ -14,7 +14,7 @@ export function buildDevisSnapshot(
   statut: Devis["statut"] = "brouillon",
 ): Devis {
   const cfg = entiteConfig(draft.entite);
-  const lignesDevis = lignes.map((l) => ({
+  const lignesDevis: LigneDevis[] = lignes.map((l) => ({
     label:
       l.quantite !== 1 || l.unite !== "u"
         ? `${l.designation} (${l.quantite} ${UNITE_LABEL[l.unite]})`
@@ -22,6 +22,7 @@ export function buildDevisSnapshot(
     montant_ht: l.total_ht,
     // Figé dans le snapshot : le QR du devis émis ne bouge plus.
     url_produit: l.url_produit ?? null,
+    categorie: l.categorie ?? null,
   }));
   // La réduction commerciale apparaît comme une ligne négative dans le devis.
   if (totaux.remise > 0) {
@@ -29,6 +30,7 @@ export function buildDevisSnapshot(
       label: "Réduction commerciale",
       montant_ht: -totaux.remise,
       url_produit: null,
+      categorie: null,
     });
   }
   return {
