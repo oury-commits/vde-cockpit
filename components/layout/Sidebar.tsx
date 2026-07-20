@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { NAV_SECTIONS, type NavItem } from "@/components/layout/nav";
+import { useIdentity } from "@/lib/roles/IdentityProvider";
+import { moduleForPath, peutVoirModule } from "@/lib/roles/permissions";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { cn } from "@/lib/cn";
 
@@ -39,6 +41,17 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { enabled, user, signOut } = useAuth();
+  const { identite } = useIdentity();
+
+  // La nav ne montre que les modules autorisés (le blocage réel est dans
+  // RouteGuard : masquer sans bloquer serait une fausse sécurité).
+  const sections = NAV_SECTIONS.map((s) => ({
+    ...s,
+    items: s.items.filter((i) => {
+      const m = moduleForPath(i.href);
+      return m === null || peutVoirModule(identite, m);
+    }),
+  })).filter((s) => s.items.length > 0);
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[236px] shrink-0 flex-col overflow-y-auto bg-brand text-cream md:flex">
@@ -59,7 +72,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-3">
-        {NAV_SECTIONS.map((section, i) => (
+        {sections.map((section, i) => (
           <div key={section.title ?? `section-${i}`} className="mt-3 px-3 first:mt-0">
             {section.title ? (
               <div className="px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-cream/40">

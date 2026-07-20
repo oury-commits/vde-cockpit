@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MOBILE_NAV } from "@/components/layout/nav";
+import { useIdentity } from "@/lib/roles/IdentityProvider";
+import { moduleForPath, peutVoirModule } from "@/lib/roles/permissions";
 import { cn } from "@/lib/cn";
 
 function isActive(pathname: string, href: string): boolean {
@@ -11,10 +13,16 @@ function isActive(pathname: string, href: string): boolean {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { identite } = useIdentity();
+
+  const items = MOBILE_NAV.filter((i) => {
+    const m = moduleForPath(i.href);
+    return m === null || peutVoirModule(identite, m);
+  });
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-cream/10 bg-brand text-cream md:hidden">
-      {MOBILE_NAV.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon;
         const active = isActive(pathname, item.href);
         return (

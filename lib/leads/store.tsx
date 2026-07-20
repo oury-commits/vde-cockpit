@@ -65,7 +65,16 @@ interface StoreValue {
   activitesFor: (leadId: string) => Activite[];
   addLead: (input: LeadInput) => { lead: Lead | null; duplicate?: Lead };
   importDrafts: (drafts: LeadDraft[]) => ImportReport;
-  updateLead: (id: string, patch: Partial<Lead>) => void;
+  /**
+   * Met à jour un lead. Si `versionAttendue` est fourni (édition utilisateur),
+   * l'écriture est gardée : elle échoue au lieu d'écraser le travail d'un
+   * collègue passé entre-temps.
+   */
+  updateLead: (
+    id: string,
+    patch: Partial<Lead>,
+    versionAttendue?: number,
+  ) => Promise<{ ok: true } | { ok: false; auteur: string | null }>;
   deleteLead: (id: string) => void;
   deleteLeads: (ids: string[]) => void;
   /** Archive un lead (conserve la pièce comptable au lieu de la détruire). */
@@ -220,6 +229,8 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
         motif_perte: null,
         assigne_a: input.assigne_a ?? null,
         notes: input.notes ?? null,
+        version: 0, // verrou optimiste : point de départ
+        modifie_par: null,
         created_at: now,
         updated_at: now,
         statut_change_at: now,
@@ -295,15 +306,38 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [leads, makeLead],
   );
 
-  const updateLead = useCallback<StoreValue["updateLead"]>((id, patch) => {
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? { ...l, ...patch, updated_at: new Date().toISOString() }
-          : l,
-      ),
-    );
-  }, []);
+  const updateLead = useCallback<StoreValue["updateLead"]>(
+    async (id, patch, versionAttendue) => {
+      // Édition utilisateur → écriture gardée (verrou optimiste).
+      if (versionAttendue !== undefined) {
+        const res = await getRepository().updateLeadGuarded(
+          id,
+          patch,
+          versionAttendue,
+          auteur,
+        );
+        if (!res.ok) return { ok: false, auteur: res.auteur };
+        setLeads((prev) => prev.map((l) => (l.id === id ? res.lead : l)));
+        return { ok: true };
+      }
+      // Écriture interne (sans conflit possible côté utilisateur).
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                ...patch,
+                version: (l.version ?? 0) + 1,
+                modifie_par: auteur,
+                updated_at: new Date().toISOString(),
+              }
+            : l,
+        ),
+      );
+      return { ok: true };
+    },
+    [auteur],
+  );
 
   const deleteLead = useCallback<StoreValue["deleteLead"]>(
     (id) => {

@@ -218,4 +218,13 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   statut_change_at: string; // pour mesurer le temps par étape
+
+  /**
+   * Verrou optimiste. Incrémenté à chaque écriture ; une écriture basée sur une
+   * version périmée est refusée au lieu d'écraser. Couvre le lead ET ses
+   * documents (devis/facture sont en JSONB sur cette ligne).
+   */
+  version?: number;
+  /** Dernier auteur d'une modification — affiché dans le message de conflit. */
+  modifie_par?: string | null;
 }
