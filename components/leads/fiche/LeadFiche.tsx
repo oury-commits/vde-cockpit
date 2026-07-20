@@ -31,6 +31,7 @@ import {
   CANAL_LABEL,
   EMPLACEMENT_LABEL,
   FIXATION_LABEL,
+  NOTE_TYPES,
   OCCUPATION_LABEL,
   PUISSANCE_LABEL,
   PV_PROJET_LABEL,
@@ -47,6 +48,8 @@ import { Input, Select } from "@/components/ui/Field";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
 import { EnvoiDialog } from "@/components/leads/EnvoiDialog";
+import { RepriseBandeau } from "@/components/leads/fiche/RepriseBandeau";
+import { JalonsRow } from "@/components/leads/fiche/JalonsRow";
 import { Timeline } from "@/components/leads/Timeline";
 import { EditLeadDialog } from "@/components/leads/fiche/EditLeadDialog";
 import { cn } from "@/lib/cn";
@@ -132,6 +135,7 @@ export function LeadFiche() {
   const [note, setNote] = useState("");
   const [tvaMode, setTvaMode] = useState<ModeTva | "">("");
   const [envoi, setEnvoi] = useState<"devis" | "facture" | null>(null);
+  const [noteType, setNoteType] = useState(NOTE_TYPES[3].key);
 
   const faisabilite = useMemo(
     () => (lead ? computeFaisabilite(lead) : null),
@@ -170,10 +174,13 @@ export function LeadFiche() {
     const facture = await store.generateFacture(lead.id);
     if (facture) generateFacturePdf(lead, facture);
   };
-  const addNote = () => {
+  const activites = store.activitesFor(lead.id);
+
+  const submitNote = () => {
     const t = note.trim();
     if (!t) return;
-    store.addActivite(lead.id, "note", t);
+    const nt = NOTE_TYPES.find((n) => n.key === noteType) ?? NOTE_TYPES[3];
+    store.addNote(lead.id, nt.type, t, nt.visibilite);
     setNote("");
   };
 
@@ -259,6 +266,12 @@ export function LeadFiche() {
             Supprimer
           </button>
         </div>
+      </div>
+
+      {/* ── Reprise de dossier : où on en est, en 2 secondes ── */}
+      <div className="mb-4 flex flex-col gap-3">
+        <RepriseBandeau lead={lead} activites={activites} />
+        <JalonsRow lead={lead} activites={activites} />
       </div>
 
       {/* ── Corps ── */}
@@ -484,18 +497,31 @@ export function LeadFiche() {
         {/* Historique */}
         <Card className="lg:col-span-2">
           <h3 className="mb-3 text-sm font-semibold text-ink">Historique</h3>
-          <div className="mb-4 flex gap-2">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <Select
+              aria-label="Type de saisie"
+              value={noteType}
+              onChange={(e) => setNoteType(e.target.value)}
+              className="h-9 w-auto shrink-0 text-[13px]"
+            >
+              {NOTE_TYPES.map((n) => (
+                <option key={n.key} value={n.key}>
+                  {n.label}
+                </option>
+              ))}
+            </Select>
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addNote()}
-              placeholder="Ajouter une note…"
+              onKeyDown={(e) => e.key === "Enter" && submitNote()}
+              placeholder="Ajouter au suivi…"
+              className="min-w-0 flex-1"
             />
-            <Button size="sm" icon={Plus} onClick={addNote}>
+            <Button size="sm" icon={Plus} onClick={submitNote}>
               Ajouter
             </Button>
           </div>
-          <Timeline activites={store.activitesFor(lead.id)} />
+          <Timeline activites={activites} />
         </Card>
       </div>
 
