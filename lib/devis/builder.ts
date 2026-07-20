@@ -5,39 +5,15 @@ import { entiteConfig } from "@/lib/entite/config";
 import { uid } from "@/lib/uid";
 import { puVenteHt, round2, MARGE_DEFAUT } from "@/lib/devis/pricing";
 import type {
-  AideLigne,
   DevisConfig,
   DevisDraft,
   DevisLigne,
   ModeDevis,
 } from "@/lib/devis/types";
 
-// TODO: brancher données réelles — aides et barème à faire valider par Oury.
-export function defaultAides(entite: Entite): AideLigne[] {
-  if (entite === "MA") return [];
-  return [
-    {
-      key: "grand_est",
-      label: "Aide Locale Grand Est",
-      actif: false,
-      montant: 1000,
-      note: "Subvention régionale — montant et éligibilité à confirmer",
-    },
-    {
-      key: "advenir",
-      label: "Prime Advenir — résidentiel",
-      actif: false,
-      montant: 0,
-      note: "Montant selon barème Advenir en vigueur",
-    },
-    {
-      key: "autre",
-      label: "Autre aide / remise commerciale",
-      actif: false,
-      montant: 0,
-    },
-  ];
-}
+// Aucune aide/subvention n'entre dans la construction du devis (FR comme MA) :
+// le total est strictement HT + TVA. Décision produit — zéro aide vaut mieux
+// qu'un montant faux.
 
 /** Palier de pose Pn attendu pour une distance (m). 0-5→1 … >30→7. */
 export function palierPose(distance_m: number): number {
@@ -168,7 +144,6 @@ export function buildDraft(
       ville: lead?.ville ?? "",
     },
     controle_non_conformes: [],
-    aides: defaultAides(entite),
     config,
     // Les consommables inclus par défaut sont dérivés (réseau-dépendants),
     // pas des suppléments figés : voir deriveLignes. Les suppléments sont
@@ -258,12 +233,4 @@ export function deriveLignes(
   for (const s of sups) push(s.article_id, s.quantite);
 
   return lignes;
-}
-
-export function aidesTotal(draft: DevisDraft): number {
-  return round2(
-    draft.aides
-      .filter((a) => a.actif)
-      .reduce((s, a) => s + (Number(a.montant) || 0), 0),
-  );
 }

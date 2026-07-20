@@ -39,14 +39,15 @@ export interface DevisTotaux {
   taux_tva: number;
   montant_tva: number;
   montant_ttc: number;
-  aides_total: number;
-  reste_a_charge: number; // TTC − aides (indicatif)
 }
 
+/**
+ * Totaux du devis : HT (après réduction commerciale) puis TVA. Aucune aide ni
+ * subvention n'est déduite — le TTC est le montant réellement dû par le client.
+ */
 export function computeTotaux(
   lignes: DevisLigne[],
   tauxTva: number,
-  aidesTotal: number,
   remise = 0,
 ): DevisTotaux {
   const cout_total = round2(
@@ -59,7 +60,6 @@ export function computeTotaux(
   const marge_pct = montant_ht > 0 ? marge_euro / montant_ht : 0;
   const montant_tva = round2(montant_ht * tauxTva);
   const montant_ttc = round2(montant_ht + montant_tva);
-  const aides = round2(Math.max(0, aidesTotal));
   return {
     cout_total,
     montant_ht_brut,
@@ -70,8 +70,6 @@ export function computeTotaux(
     taux_tva: tauxTva,
     montant_tva,
     montant_ttc,
-    aides_total: aides,
-    reste_a_charge: round2(montant_ttc - aides),
   };
 }
 

@@ -23,9 +23,9 @@ import type { CatalogueArticle } from "@/lib/catalogue/types";
 import { useLeadsStore } from "@/lib/leads/store";
 import { entiteConfig, optionTva, ENTITE_LABEL } from "@/lib/entite/config";
 import { generateDevisPdf } from "@/lib/leads/devis";
-import type { AideLigne, DevisDraft, ModeDevis, VueDevis } from "@/lib/devis/types";
+import type { DevisDraft, ModeDevis, VueDevis } from "@/lib/devis/types";
 import { MODE_DEVIS_LABEL, WIZARD_STEPS } from "@/lib/devis/types";
-import { aidesTotal, buildDraft, deriveLignes } from "@/lib/devis/builder";
+import { buildDraft, deriveLignes } from "@/lib/devis/builder";
 import { buildEcheancierPaiement, computeTotaux } from "@/lib/devis/pricing";
 import {
   computeControle,
@@ -37,7 +37,6 @@ import { reserveRef } from "@/lib/leads/sequences";
 import { WizardContext, type WizardValue } from "@/components/devis/context";
 import { DevisPreview } from "@/components/devis/DevisPreview";
 import { StepClient } from "@/components/devis/steps/StepClient";
-import { StepAides } from "@/components/devis/steps/StepAides";
 import { StepConfig } from "@/components/devis/steps/StepConfig";
 import { StepSupplements } from "@/components/devis/steps/StepSupplements";
 import { StepSynthese } from "@/components/devis/steps/StepSynthese";
@@ -91,7 +90,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   const totaux = useMemo(() => {
     if (!draft) return null;
     const taux = optionTva(draft.entite, draft.mode_tva).taux;
-    return computeTotaux(lignes, taux, aidesTotal(draft), draft.remise);
+    return computeTotaux(lignes, taux, draft.remise);
   }, [draft, lignes]);
   const controle = useMemo(
     () =>
@@ -117,12 +116,6 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
         setDraft((d) => (d ? { ...d, client: { ...d.client, ...p } } : d)),
       patchConfig: (p) =>
         setDraft((d) => (d ? { ...d, config: { ...d.config, ...p } } : d)),
-      patchAide: (key, p: Partial<AideLigne>) =>
-        setDraft((d) =>
-          d
-            ? { ...d, aides: d.aides.map((a) => (a.key === key ? { ...a, ...p } : a)) }
-            : d,
-        ),
       setSupplement: (articleId, quantite) =>
         setDraft((d) => {
           if (!d) return d;
@@ -223,7 +216,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
     }
   };
 
-  const StepBody = [StepClient, StepAides, StepConfig, StepSupplements, StepSynthese][
+  const StepBody = [StepClient, StepConfig, StepSupplements, StepSynthese][
     step
   ];
 

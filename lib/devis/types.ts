@@ -50,13 +50,10 @@ export interface ControleLigne {
   conforme: boolean;
 }
 
-export interface AideLigne {
-  key: string;
-  label: string;
-  actif: boolean;
-  montant: number; // déduction indicative sur le reste à charge
-  note?: string;
-}
+// Note : aucune aide/subvention n'est affichée ni calculée sur le devis
+// (décision produit : mieux vaut zéro aide qu'un montant faux). Le total est
+// strictement HT + TVA. Voir `eligible_advenir` sur le lead : c'est un signal
+// de qualification, sans effet sur le devis.
 
 export type ModePaiement = "40_40_20" | "50_50";
 
@@ -98,7 +95,6 @@ export interface DevisDraft {
   client: DevisClient;
   /** Clés du contrôle marquées non conformes (les autres sont OK). */
   controle_non_conformes: ControleKey[];
-  aides: AideLigne[];
   config: DevisConfig;
   supplements: DevisSupplement[];
   taux_marge: number; // marge cible globale (0.35 par défaut)
@@ -113,7 +109,6 @@ export type VueDevis = "client" | "interne";
 
 export const WIZARD_STEPS = [
   { key: "client", label: "Client & conformité" },
-  { key: "aides", label: "Aides" },
   { key: "config", label: "Configuration" },
   { key: "supplements", label: "Suppléments" },
   { key: "synthese", label: "Synthèse" },
