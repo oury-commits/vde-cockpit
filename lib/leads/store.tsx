@@ -40,6 +40,8 @@ import { buildFacture } from "@/lib/leads/facture";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
 import { MEMBRES, STATUT_META, isLeadProtege } from "@/lib/leads/meta";
+import { useIdentity } from "@/lib/roles/IdentityProvider";
+import { peutVoirEntite } from "@/lib/roles/permissions";
 import { formatDate } from "@/lib/format";
 import { uid } from "@/lib/uid";
 import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
@@ -124,6 +126,7 @@ function displayName(email: string | null): string {
 
 export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { identite } = useIdentity();
   const [loaded, setLoaded] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
@@ -666,11 +669,22 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [activites],
   );
 
+  /**
+   * Cloisonnement à la SOURCE : le store n'expose que les dossiers du périmètre
+   * de l'utilisateur. Une seule barrière au lieu d'une par écran — la fiche, le
+   * drawer, le wizard et les KPI en héritent, y compris sur une URL forcée.
+   * (Le verrou définitif sera la RLS Supabase en P3 ; ceci est son pendant UI.)
+   */
+  const leadsVisibles = useMemo(
+    () => leads.filter((l) => peutVoirEntite(identite, l.entite)),
+    [leads, identite],
+  );
+
   const value = useMemo<StoreValue>(
     () => ({
       loaded,
       isDemo: repositoryKind === "local",
-      leads,
+      leads: leadsVisibles,
       activites,
       activitesFor,
       addLead,
@@ -695,7 +709,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       loaded,
-      leads,
+      leadsVisibles,
       activites,
       activitesFor,
       addLead,

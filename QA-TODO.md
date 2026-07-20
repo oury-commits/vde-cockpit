@@ -75,6 +75,33 @@ Aujourd'hui le taux (Paramètres) vit en **localStorage** (par navigateur, défa
 10,8). À mettre à la vraie valeur et, idéalement, à déplacer dans une table
 `settings` Supabase partagée équipe.
 
+### 7. Tour de contrôle admin — supervision par exception (P2/P3, PAS en P1)
+
+L'admin ne doit pas *surveiller* les équipes en continu : il doit être **alerté
+par exception**, quand un dossier sort des rails. Écran unique alimenté par des
+règles, pas un mur de tableaux.
+
+Signaux à remonter (liste de départ, à compléter avec le terrain) :
+- devis **signé sans acompte reçu** (le cash n'est pas parti) ;
+- lead **chaud sans relance depuis J+2** ;
+- intervention **clôturée sans photos** (litige SAV à venir) ;
+- dossier **bloqué depuis > N jours** dans le même statut (N paramétrable).
+
+Contraintes : l'exception traverse les entités (l'admin est le seul rôle `ALL`),
+elle affiche le **dossier + le responsable + l'action attendue**, et elle
+disparaît d'elle-même quand la condition se lève. À implémenter quand P2 (écran
+Équipe) et P3 (RLS) seront posés — les règles s'appuieront sur les mêmes filtres
+serveur, pas sur un calcul client.
+
+### 8. Technicien : « uniquement sa propre tournée » — à re-tester quand le module existera
+
+Vérifié en P1 : le technicien n'a accès qu'à Clients / Planning & tournées / SAV,
+`/dashboard` le renvoie sur `/planning`, et il ne voit **aucun montant**. Mais
+Planning / SAV / Clients sont encore des placeholders (0 enregistrement) : le
+cloisonnement *par technicien* (`technicien_id = utilisateur courant`) ne peut
+pas être prouvé sur des données aujourd'hui. À câbler **avec** la vue mobile P2
+et à verrouiller par RLS en P3 — ne pas considérer ce point comme acquis.
+
 ---
 
 ## Rapport d'audit (synthèse) — campagne Playwright du 17 juil.

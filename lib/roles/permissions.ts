@@ -1,3 +1,4 @@
+import type { Entite } from "@/lib/types";
 import type { Identite, Role } from "@/lib/roles/types";
 
 // Matrice module × rôle, appliquée À L'INTÉRIEUR de l'entité du user.
@@ -89,6 +90,17 @@ export function accesModule(identite: Identite, module: ModuleKey): Acces {
 
 export function peutVoirModule(identite: Identite, module: ModuleKey): boolean {
   return accesModule(identite, module) !== "none";
+}
+
+/**
+ * Cloisonnement pays, au niveau de l'ENREGISTREMENT.
+ * Contrôler l'accès au module ne suffit pas : sans ce filtre, forcer une URL
+ * (`/leads/FB-011` depuis un compte FR) afficherait un dossier de l'autre
+ * entité. Appliqué à la source, dans le store, pour couvrir tous les écrans.
+ */
+export function peutVoirEntite(identite: Identite, entite: Entite): boolean {
+  if (!identite.actif || !identite.entite) return false;
+  return identite.entite === "ALL" || identite.entite === entite;
 }
 
 /**
