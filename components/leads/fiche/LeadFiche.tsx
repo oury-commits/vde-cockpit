@@ -347,7 +347,8 @@ export function LeadFiche() {
           </a>
           <InfoRow label="Source" value={lead.source_campagne} />
           <InfoRow label="Canal" value={CANAL_LABEL[lead.canal]} />
-          <InfoRow label="Assigné à" value={lead.assigne_a} />
+          {/* Assigné à : affiché dans le bandeau de reprise (source unique).
+              Édition via « Passer le relais » ou « Modifier ». */}
         </Card>
 
         {/* Pipeline */}
@@ -374,10 +375,8 @@ export function LeadFiche() {
               ))}
             </ol>
           )}
-          <div className="mt-3 space-y-1 border-t border-line pt-3">
-            <InfoRow label="Prochaine action" value={lead.prochaine_action} />
-            <InfoRow label="Relance" value={lead.date_relance ? formatDate(lead.date_relance) : null} />
-          </div>
+          {/* Prochaine action / relance : affichées dans le bandeau de reprise
+              (source unique). Édition via « Modifier ». */}
         </Card>
 
         {/* Documents */}
