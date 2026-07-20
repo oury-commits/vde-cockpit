@@ -278,16 +278,7 @@ export function LeadDrawer({
           label="Distance tableau"
           value={lead.distance_tableau != null ? `${lead.distance_tableau} m` : null}
         />
-        <InfoRow
-          label="Éligible ADVENIR"
-          value={
-            lead.eligible_advenir == null
-              ? null
-              : lead.eligible_advenir
-                ? "Oui"
-                : "Non"
-          }
-        />
+        {/* eligible_advenir masqué : usage interne (import + scoring) seulement. */}
         <InfoRow
           label="Montant estimé"
           value={lead.montant_estime != null ? formatMontant(lead.montant_estime, entiteConfig(lead.entite).devise) : null}
