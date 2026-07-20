@@ -95,6 +95,8 @@ export interface LigneDevis {
   label: string;
   /** Montant HT de la ligne, en euros. */
   montant_ht: number;
+  /** Fiche produit à encoder en QR sur le PDF (bornes uniquement). */
+  url_produit?: string | null;
 }
 
 /** Devis lié à un lead. Devise, TVA et numérotation suivent l'entité. */

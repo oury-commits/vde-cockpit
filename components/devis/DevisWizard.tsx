@@ -210,7 +210,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
       const ref = await reserveRef(draft.entite, "devis");
       const devis = buildDevisSnapshot(draft, lignes, totaux, ref, dateISO, "envoye");
       leads.attachDevis(targetId, devis, echeances); // persistance d'abord
-      generateDevisPdf(draft.client, devis, echeances); // PDF ensuite (marge masquée)
+      await generateDevisPdf(draft.client, devis, echeances); // PDF ensuite (marge masquée)
       setSaved("valide");
       const goId = targetId;
       setTimeout(() => router.push(`/leads/${goId}`), 700);

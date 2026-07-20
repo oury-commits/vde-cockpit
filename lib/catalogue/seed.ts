@@ -30,6 +30,8 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
     unite,
     cout_ht,
     cout_ma: null, // prix MA dérivé du taux tant qu'il n'est pas surchargé
+    url_produit: null, // TODO: brancher données réelles — fiches produit du site VDE
+    afficher_qr: false,
     entite: "FR",
     actif: true,
     a_confirmer: o.a_confirmer ?? false,

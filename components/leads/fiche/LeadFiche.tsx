@@ -161,7 +161,7 @@ export function LeadFiche() {
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id, tvaMode || undefined);
-    if (devis) generateDevisPdf(lead, devis);
+    if (devis) await generateDevisPdf(lead, devis);
   };
   const onConvertFacture = async () => {
     const facture = await store.generateFacture(lead.id);
@@ -380,7 +380,7 @@ export function LeadFiche() {
                 </span>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" icon={Download} onClick={() => generateDevisPdf(lead, lead.devis!)}>
+                <Button size="sm" variant="secondary" icon={Download} onClick={() => void generateDevisPdf(lead, lead.devis!)}>
                   Voir le PDF
                 </Button>
                 {lead.devis.statut !== "signe" ? (

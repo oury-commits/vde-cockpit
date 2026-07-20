@@ -20,10 +20,16 @@ export function buildDevisSnapshot(
         ? `${l.designation} (${l.quantite} ${UNITE_LABEL[l.unite]})`
         : l.designation,
     montant_ht: l.total_ht,
+    // Figé dans le snapshot : le QR du devis émis ne bouge plus.
+    url_produit: l.url_produit ?? null,
   }));
   // La réduction commerciale apparaît comme une ligne négative dans le devis.
   if (totaux.remise > 0) {
-    lignesDevis.push({ label: "Réduction commerciale", montant_ht: -totaux.remise });
+    lignesDevis.push({
+      label: "Réduction commerciale",
+      montant_ht: -totaux.remise,
+      url_produit: null,
+    });
   }
   return {
     ref,
