@@ -36,7 +36,9 @@ export function BottomNav() {
             )}
           >
             <Icon className="size-5" strokeWidth={1.75} />
-            <span className="truncate">{item.label.split(" ")[0]}</span>
+            <span className="truncate">
+              {item.shortLabel ?? item.label.split(" ")[0]}
+            </span>
             {item.badge ? (
               <span className="absolute right-1/2 top-1.5 translate-x-3 rounded-full bg-gold px-1 font-mono text-[9px] font-semibold leading-tight text-brand">
                 {item.badge}

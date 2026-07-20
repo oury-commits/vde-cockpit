@@ -13,15 +13,22 @@ import { moduleForPath, peutVoirModule, routeDeRepli } from "@/lib/roles/permiss
 export function RouteGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { identite } = useIdentity();
+  const { identite, pret } = useIdentity();
 
-  const module = moduleForPath(pathname ?? "");
-  const autorise = module === null || peutVoirModule(identite, module);
+  const cible = moduleForPath(pathname ?? "");
+  // Tant que l'identité n'est pas résolue, on ne tranche pas : conclure « aucun
+  // droit » sur une identité encore vide renverrait vers /acces-refuse
+  // quelqu'un qui a le droit d'entrer.
+  const autorise = !pret || cible === null || peutVoirModule(identite, cible);
   const repli = routeDeRepli(identite);
 
   useEffect(() => {
     if (!autorise) router.replace(repli);
   }, [autorise, repli, router]);
+
+  if (!pret) {
+    return <p className="py-24 text-center text-sm text-muted">Chargement…</p>;
+  }
 
   if (!autorise) {
     return (
