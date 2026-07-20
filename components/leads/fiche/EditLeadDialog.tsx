@@ -191,16 +191,8 @@ export function EditLeadDialog({
             ))}
           </Select>
         </Field>
-        <Field label="Éligible ADVENIR">
-          <Select
-            value={form.eligible_advenir == null ? "" : form.eligible_advenir ? "oui" : "non"}
-            onChange={(e) => set("eligible_advenir", e.target.value === "" ? null : e.target.value === "oui")}
-          >
-            <option value="">—</option>
-            <option value="oui">Oui</option>
-            <option value="non">Non</option>
-          </Select>
-        </Field>
+        {/* eligible_advenir retiré du formulaire : la valeur vient de l'import
+            CSV et sert au scoring — elle n'est plus saisie ni affichée. */}
         <Field label="Budget (réponse formulaire)">
           <Input value={form.budget ?? ""} onChange={(e) => set("budget", e.target.value || null)} />
         </Field>

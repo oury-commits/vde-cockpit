@@ -298,7 +298,8 @@ export function LeadFiche() {
               <InfoRow label="Véhicule" value={lead.type_vehicule} />
               <InfoRow label="Puissance souhaitée" value={lead.puissance_souhaitee ? PUISSANCE_LABEL[lead.puissance_souhaitee] : null} />
               <InfoRow label="Budget" value={lead.budget} />
-              <InfoRow label="Éligible ADVENIR" value={lead.eligible_advenir == null ? null : lead.eligible_advenir ? "Oui" : "Non"} />
+              {/* eligible_advenir n'est plus affiché : signal de qualification
+                  interne (import CSV + scoring de température) uniquement. */}
             </Block>
           </div>
 

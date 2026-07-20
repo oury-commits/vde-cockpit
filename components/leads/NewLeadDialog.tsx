@@ -182,27 +182,8 @@ export function NewLeadDialog({
             }
           />
         </Field>
-        <Field label="Éligible ADVENIR">
-          <Select
-            value={
-              form.eligible_advenir === undefined
-                ? ""
-                : form.eligible_advenir
-                  ? "oui"
-                  : "non"
-            }
-            onChange={(e) =>
-              set(
-                "eligible_advenir",
-                e.target.value === "" ? undefined : e.target.value === "oui",
-              )
-            }
-          >
-            <option value="">—</option>
-            <option value="oui">Oui</option>
-            <option value="non">Non</option>
-          </Select>
-        </Field>
+        {/* eligible_advenir retiré du formulaire : renseigné par l'import CSV,
+            exploité par le scoring — jamais affiché ni saisi à la main. */}
         <Field label="Assigné à">
           <Select
             value={form.assigne_a ?? ""}
