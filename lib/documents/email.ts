@@ -9,8 +9,15 @@ import { formatDate, formatMontant } from "@/lib/format";
 // TODO: brancher données réelles — durée de validité à confirmer par Oury.
 export const VALIDITE_DEVIS_JOURS = 30;
 
-/** Expéditeur par entité. */
-// TODO: brancher données réelles — domaines à vérifier dans Resend avant envoi.
+/**
+ * Expéditeur par entité.
+ * FR : `devis@visiondigitalenergies.fr` — confirmé, domaine à vérifier dans Resend.
+ * MA : cible `devis@vde.ma`. En attendant la vérification du domaine vde.ma chez
+ * Resend, on retombe volontairement sur l'expéditeur FR (validé par Oury) —
+ * envoyer depuis un domaine non vérifié ferait rejeter l'email.
+ */
+// TODO: brancher données réelles — basculer MA sur devis@vde.ma une fois le
+// domaine vde.ma vérifié chez Resend.
 const EXPEDITEUR: Record<Entite, string> = {
   FR: "Vision Digital Energies <devis@visiondigitalenergies.fr>",
   MA: "Vision Digitale Energies Maroc <devis@visiondigitalenergies.fr>",
