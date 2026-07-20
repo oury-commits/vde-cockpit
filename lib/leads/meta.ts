@@ -2,6 +2,7 @@ import type {
   Canal,
   Emplacement,
   Fixation,
+  Lead,
   MotifPerte,
   Occupation,
   Puissance,
@@ -11,6 +12,14 @@ import type {
   Temperature,
   TypeLogement,
 } from "@/lib/types";
+
+/**
+ * Lead « protégé » : porte une pièce comptable émise (devis signé ou facture).
+ * Sa suppression est interdite — on archive pour conserver le document.
+ */
+export function isLeadProtege(lead: Lead): boolean {
+  return lead.devis?.statut === "signe" || Boolean(lead.facture);
+}
 
 /** Ordre du pipeline (§5). `perdu` est terminal, hors flux. */
 export const STATUT_ORDER: Statut[] = [

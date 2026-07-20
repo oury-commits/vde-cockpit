@@ -31,10 +31,11 @@ import {
   parseStatutSource,
 } from "@/lib/leads/appsheet";
 import { scoreTemperature } from "@/lib/leads/scoring";
-import { buildDevis, buildEcheancier, nextDevisRef } from "@/lib/leads/devis";
-import { buildFacture, nextFactureRef } from "@/lib/leads/facture";
+import { buildDevis, buildEcheancier } from "@/lib/leads/devis";
+import { buildFacture } from "@/lib/leads/facture";
+import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
-import { STATUT_META } from "@/lib/leads/meta";
+import { STATUT_META, isLeadProtege } from "@/lib/leads/meta";
 import { uid } from "@/lib/uid";
 import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
 
@@ -62,14 +63,16 @@ interface StoreValue {
   updateLead: (id: string, patch: Partial<Lead>) => void;
   deleteLead: (id: string) => void;
   deleteLeads: (ids: string[]) => void;
+  /** Archive un lead (conserve la pièce comptable au lieu de la détruire). */
+  archiveLead: (id: string) => void;
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
-  generateDevis: (leadId: string, mode?: ModeTva) => Devis | null;
+  generateDevis: (leadId: string, mode?: ModeTva) => Promise<Devis | null>;
   /** Rattache un devis construit par le générateur (wizard) à un lead. */
   attachDevis: (leadId: string, devis: Devis, echeancier: Echeance[]) => void;
   markDevisEnvoye: (leadId: string) => void;
   signDevis: (leadId: string) => void;
-  generateFacture: (leadId: string) => Facture | null;
+  generateFacture: (leadId: string) => Promise<Facture | null>;
   setEcheanceStatut: (
     leadId: string,
     index: number,
@@ -258,19 +261,47 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const deleteLead = useCallback<StoreValue["deleteLead"]>((id) => {
-    setLeads((prev) => prev.filter((l) => l.id !== id));
-    setActivites((prev) => prev.filter((a) => a.lead_id !== id));
-    void getRepository().deleteLead(id);
-  }, []);
+  const deleteLead = useCallback<StoreValue["deleteLead"]>(
+    (id) => {
+      const lead = leads.find((l) => l.id === id);
+      if (lead && isLeadProtege(lead)) return; // pièce comptable : jamais détruite
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      setActivites((prev) => prev.filter((a) => a.lead_id !== id));
+      void getRepository().deleteLead(id);
+    },
+    [leads],
+  );
 
-  const deleteLeads = useCallback<StoreValue["deleteLeads"]>((ids) => {
-    if (ids.length === 0) return;
-    const set = new Set(ids);
-    setLeads((prev) => prev.filter((l) => !set.has(l.id)));
-    setActivites((prev) => prev.filter((a) => !set.has(a.lead_id)));
-    void getRepository().deleteLeads(ids);
-  }, []);
+  const deleteLeads = useCallback<StoreValue["deleteLeads"]>(
+    (ids) => {
+      if (ids.length === 0) return;
+      // On ne détruit jamais un lead protégé (devis signé / facture émise).
+      const protege = new Set(
+        leads.filter(isLeadProtege).map((l) => l.id),
+      );
+      const target = ids.filter((id) => !protege.has(id));
+      if (target.length === 0) return;
+      const set = new Set(target);
+      setLeads((prev) => prev.filter((l) => !set.has(l.id)));
+      setActivites((prev) => prev.filter((a) => !set.has(a.lead_id)));
+      void getRepository().deleteLeads(target);
+    },
+    [leads],
+  );
+
+  const archiveLead = useCallback<StoreValue["archiveLead"]>(
+    (id) => {
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === id
+            ? { ...l, archived: true, updated_at: new Date().toISOString() }
+            : l,
+        ),
+      );
+      pushActivite(id, "note", "Lead archivé — pièce comptable conservée");
+    },
+    [pushActivite],
+  );
 
   const changeStatut = useCallback<StoreValue["changeStatut"]>(
     (id, statut, motif) => {
@@ -300,13 +331,11 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const generateDevis = useCallback<StoreValue["generateDevis"]>(
-    (leadId, mode) => {
+    async (leadId, mode) => {
       const lead = leads.find((l) => l.id === leadId);
       if (!lead) return null;
-      const existingRefs = leads
-        .map((l) => l.devis?.ref)
-        .filter((r): r is string => Boolean(r));
-      const ref = nextDevisRef(existingRefs, lead.entite);
+      // Numéro réservé atomiquement au compteur (jamais recalculé).
+      const ref = await reserveRef(lead.entite, "devis");
       const devis = buildDevis(lead, ref, new Date().toISOString(), lead.entite, mode);
       const now = new Date().toISOString();
       setLeads((prev) =>
@@ -403,14 +432,12 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const generateFacture = useCallback<StoreValue["generateFacture"]>(
-    (leadId) => {
+    async (leadId) => {
       const lead = leads.find((l) => l.id === leadId);
       if (!lead || !lead.devis || lead.devis.statut !== "signe") return null;
       if (lead.facture) return lead.facture; // déjà émise (numérotation unique)
-      const existingRefs = leads
-        .map((l) => l.facture?.ref)
-        .filter((r): r is string => Boolean(r));
-      const ref = nextFactureRef(existingRefs, lead.entite);
+      // Facture = séquence continue par entité, réservée à l'émission.
+      const ref = await reserveRef(lead.entite, "facture");
       const facture = buildFacture(lead.devis, ref, new Date().toISOString());
       setLeads((prev) =>
         prev.map((l) =>
@@ -479,6 +506,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       updateLead,
       deleteLead,
       deleteLeads,
+      archiveLead,
       changeStatut,
       addActivite: pushActivite,
       generateDevis,
@@ -499,6 +527,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       updateLead,
       deleteLead,
       deleteLeads,
+      archiveLead,
       changeStatut,
       pushActivite,
       generateDevis,

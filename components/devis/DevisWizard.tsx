@@ -32,7 +32,8 @@ import {
   estConforme,
   rentabilite,
 } from "@/lib/devis/conformite";
-import { buildDevisSnapshot, nextDevisRef } from "@/lib/devis/output";
+import { buildDevisSnapshot } from "@/lib/devis/output";
+import { reserveRef } from "@/lib/leads/sequences";
 import { WizardContext, type WizardValue } from "@/components/devis/context";
 import { DevisPreview } from "@/components/devis/DevisPreview";
 import { StepClient } from "@/components/devis/steps/StepClient";
@@ -58,6 +59,8 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   const [step, setStep] = useState(0);
   const [vue, setVue] = useState<VueDevis>("client");
   const [saved, setSaved] = useState<null | "brouillon" | "valide">(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const ready = catalogue.loaded && (!leadId || leads.loaded);
   const lead = leadId ? leads.leads.find((l) => l.id === leadId) ?? null : null;
@@ -150,30 +153,74 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
 
   const conforme = estConforme(controle);
   const canExport = lignes.length > 0;
+  const clientNom = draft.client.nom.trim();
   const isLast = step === WIZARD_STEPS.length - 1;
   const rent = rentabilite(totaux.marge_pct);
 
-  const buildRefAndEch = () => {
-    const existing = leads.leads
-      .map((l) => l.devis?.ref)
-      .filter((r): r is string => Boolean(r));
-    const ref = nextDevisRef(existing, draft.entite);
+  const finalize = async (statut: "brouillon" | "envoye") => {
+    if (busy || saved) return;
+    setError(null);
     const echeances = buildEcheancierPaiement(
       totaux.montant_ttc,
       draft.mode_paiement,
     );
-    return { ref, echeances, dateISO: new Date().toISOString() };
-  };
+    const dateISO = new Date().toISOString();
 
-  const finalize = (statut: "brouillon" | "envoye") => {
-    const { ref, echeances, dateISO } = buildRefAndEch();
-    const devis = buildDevisSnapshot(draft, lignes, totaux, ref, dateISO, statut);
-    if (statut === "envoye") {
-      generateDevisPdf(draft.client, devis, echeances); // PDF client (marge masquée)
+    // Brouillon : AUCUN numéro consommé (réservé à l'émission seulement).
+    if (statut === "brouillon") {
+      if (!leadId) return;
+      const devis = buildDevisSnapshot(
+        draft, lignes, totaux, "Brouillon", dateISO, "brouillon",
+      );
+      leads.attachDevis(leadId, devis, echeances);
+      setSaved("brouillon");
+      setTimeout(() => router.push(`/leads/${leadId}`), 700);
+      return;
     }
-    if (leadId) leads.attachDevis(leadId, devis, echeances);
-    setSaved(statut === "envoye" ? "valide" : "brouillon");
-    if (leadId) setTimeout(() => router.push(`/leads/${leadId}`), 700);
+
+    // Émission — garde anti-fantôme : lead rattaché + nom + lignes + conformité.
+    if (!clientNom) {
+      setError("Renseigne le nom du client avant d'émettre le devis.");
+      return;
+    }
+    if (!canExport || !conforme) return;
+
+    setBusy(true);
+    try {
+      // Rattachement obligatoire : lead existant, sinon client créé à la volée.
+      let targetId = leadId ?? null;
+      if (!targetId) {
+        const res = leads.addLead({
+          nom: clientNom,
+          telephone: draft.client.telephone,
+          email: draft.client.email || undefined,
+          adresse: draft.client.adresse || undefined,
+          code_postal: draft.client.code_postal || undefined,
+          ville: draft.client.ville || undefined,
+          entite: draft.entite,
+        });
+        targetId = res.lead?.id ?? res.duplicate?.id ?? null;
+      }
+      if (!targetId) {
+        setError("Impossible de rattacher le devis à un client.");
+        return;
+      }
+
+      // Numéro réservé atomiquement, puis persistance, puis PDF.
+      const ref = await reserveRef(draft.entite, "devis");
+      const devis = buildDevisSnapshot(draft, lignes, totaux, ref, dateISO, "envoye");
+      leads.attachDevis(targetId, devis, echeances); // persistance d'abord
+      generateDevisPdf(draft.client, devis, echeances); // PDF ensuite (marge masquée)
+      setSaved("valide");
+      const goId = targetId;
+      setTimeout(() => router.push(`/leads/${goId}`), 700);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Échec de l'émission du devis.",
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const StepBody = [StepClient, StepAides, StepConfig, StepSupplements, StepSynthese][
@@ -275,7 +322,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                         variant="secondary"
                         icon={Save}
                         onClick={() => finalize("brouillon")}
-                        disabled={!canExport || saved !== null}
+                        disabled={!canExport || busy || saved !== null}
                       >
                         Brouillon
                       </Button>
@@ -283,14 +330,22 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                     <Button
                       icon={saved === "valide" ? Check : FileCheck2}
                       onClick={() => finalize("envoye")}
-                      disabled={!canExport || !conforme || saved !== null}
+                      disabled={
+                        !canExport || !conforme || !clientNom || busy || saved !== null
+                      }
                       title={
-                        !conforme
-                          ? "Installation non conforme — corrigez le contrôle technique"
-                          : undefined
+                        !clientNom
+                          ? "Renseigne le nom du client"
+                          : !conforme
+                            ? "Installation non conforme — corrigez le contrôle technique"
+                            : undefined
                       }
                     >
-                      {saved === "valide" ? "Devis émis" : "Valider le devis"}
+                      {saved === "valide"
+                        ? "Devis émis"
+                        : busy
+                          ? "Émission…"
+                          : "Valider le devis"}
                     </Button>
                   </>
                 ) : (
@@ -305,9 +360,15 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                 )}
               </div>
             </div>
-            {isLast && !conforme ? (
+            {isLast ? (
               <p className="text-right text-xs font-medium text-alert">
-                Contrôle technique non conforme — validation bloquée.
+                {error
+                  ? error
+                  : !clientNom
+                    ? "Renseigne le nom du client pour émettre le devis."
+                    : !conforme
+                      ? "Contrôle technique non conforme — validation bloquée."
+                      : ""}
               </p>
             ) : null}
           </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Trash2, Upload, Users } from "lucide-react";
 import { useLeadsStore } from "@/lib/leads/store";
+import { isLeadProtege } from "@/lib/leads/meta";
 import { useEntity } from "@/lib/entite/EntityProvider";
 import { ENTITE_LABEL } from "@/lib/entite/config";
 import {
@@ -50,16 +51,17 @@ export function LeadsView() {
   const [newOpen, setNewOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOne, setConfirmOne] = useState<string | null>(null);
+  const [archiveConfirm, setArchiveConfirm] = useState<string | null>(null);
   const [confirmSelection, setConfirmSelection] = useState(false);
   const [viderOpen, setViderOpen] = useState(false);
   const [viderText, setViderText] = useState("");
 
-  // Filtre entité : ne jamais mélanger FR et MA (sauf « Tous »).
+  // Filtre entité (ne jamais mélanger FR/MA) + exclusion des archivés.
   const leads = useMemo(
     () =>
-      active === "ALL"
-        ? store.leads
-        : store.leads.filter((l) => l.entite === active),
+      store.leads.filter(
+        (l) => !l.archived && (active === "ALL" || l.entite === active),
+      ),
     [store.leads, active],
   );
 
@@ -100,6 +102,12 @@ export function LeadsView() {
     setSelectedIds(new Set(groups.flatMap((g) => g.leads.map((l) => l.id))));
   const clearSelection = () => setSelectedIds(new Set());
 
+  // Un lead avec devis signé / facture ne se supprime pas → propose l'archivage.
+  const requestDelete = (id: string) => {
+    const lead = store.leads.find((l) => l.id === id);
+    if (lead && isLeadProtege(lead)) setArchiveConfirm(id);
+    else setConfirmOne(id);
+  };
   const doDeleteOne = () => {
     if (confirmOne) {
       store.deleteLead(confirmOne);
@@ -110,6 +118,10 @@ export function LeadsView() {
       });
     }
     setConfirmOne(null);
+  };
+  const doArchive = () => {
+    if (archiveConfirm) store.archiveLead(archiveConfirm);
+    setArchiveConfirm(null);
   };
   const doDeleteSelection = () => {
     store.deleteLeads([...selectedIds].filter((id) => entityIds.has(id)));
@@ -289,7 +301,7 @@ export function LeadsView() {
           selectedIds={selectedIds}
           onSelect={setSelected}
           onToggleSelect={toggleSelect}
-          onDeleteOne={setConfirmOne}
+          onDeleteOne={requestDelete}
         />
       )}
 
@@ -324,6 +336,29 @@ export function LeadsView() {
         <p className="text-sm text-ink">
           Supprimer définitivement ce lead et tout son historique ? Cette action
           est irréversible.
+        </p>
+      </Modal>
+
+      {/* Lead protégé (devis signé / facture) → archivage, pas suppression */}
+      <Modal
+        open={archiveConfirm !== null}
+        onClose={() => setArchiveConfirm(null)}
+        title="Archiver ce lead ?"
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setArchiveConfirm(null)}>
+              Annuler
+            </Button>
+            <Button onClick={doArchive}>Archiver</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-ink">
+          Ce lead porte un devis signé ou une facture émise : il ne peut pas
+          être supprimé (obligation de conservation des pièces comptables). Il
+          sera <span className="font-medium">archivé</span> — retiré des listes
+          actives, mais conservé avec ses documents.
         </p>
       </Modal>
 

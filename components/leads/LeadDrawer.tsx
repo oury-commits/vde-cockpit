@@ -91,8 +91,8 @@ export function LeadDrawer({
     setActText("");
   };
 
-  const onGenerateDevis = () => {
-    const devis = store.generateDevis(lead.id);
+  const onGenerateDevis = async () => {
+    const devis = await store.generateDevis(lead.id);
     if (devis) generateDevisPdf(lead, devis);
   };
 
