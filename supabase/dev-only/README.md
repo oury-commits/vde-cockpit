@@ -21,3 +21,13 @@ volontairement **hors de `supabase/migrations/`** pour qu'aucun outil
 
 État de référence (sûr) : seule `supabase/migrations/0001_init_leads.sql` est
 appliquée → RLS stricte, `authenticated` = CRUD, `anon` = bloqué.
+
+## Depuis la migration 0015 (RLS par rôle)
+
+`0015_roles_rls.sql` **supprime** les deux policies `anon` de ce dossier, ainsi
+que les policies `..._authenticated_all` qui donnaient tout à tout compte
+connecté. Autrement dit : appliquer 0015 referme d'office cette porte de
+développement, et la réappliquer ensuite la rouvrirait — ne le faites pas.
+
+Après 0015, l'état sûr se vérifie par les trois requêtes de contrôle en fin de
+migration, et se rejoue à tout moment avec `npm run test:rls`.
