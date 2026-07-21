@@ -6,9 +6,16 @@ import { QrProduit } from "@/components/devis/QrProduit";
 import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
-import { buildEcheancierPaiement } from "@/lib/devis/pricing";
+import {
+  AIDE_TVA_FR,
+  TAUX_TVA_FR,
+  buildEcheancierPaiement,
+} from "@/lib/devis/pricing";
 import { MENTION_REMISE } from "@/lib/devis/remise";
 import { MODE_PAIEMENT_LABEL } from "@/lib/devis/types";
+
+const pctTva = (t: number) =>
+  `${new Intl.NumberFormat("fr-FR").format(t * 100)} %`;
 
 const ECHEANCE_LABEL: Record<string, string> = {
   acompte: "Acompte",
@@ -17,17 +24,16 @@ const ECHEANCE_LABEL: Record<string, string> = {
 };
 
 export function DevisPreview() {
-  const { draft, lignes, totaux, vue, setVue } = useWizard();
+  const { draft, lignes, totaux, vue, setVue, setTauxLigne } = useWizard();
   const cfg = entiteConfig(draft.entite);
   const devise = cfg.devise;
   const m = (n: number) => formatMontant(n, devise, { cents: true });
   const interne = vue === "interne";
 
   const opt = optionTva(draft.entite, draft.mode_tva);
-  const tvaLabel =
-    draft.mode_tva === "fr_autoliquidation"
-      ? "TVA — autoliquidation"
-      : `TVA ${new Intl.NumberFormat("fr-FR").format(totaux.taux_tva * 100)} %`;
+  const autoliq = draft.mode_tva === "fr_autoliquidation";
+  // TVA choisissable par ligne : France, hors autoliquidation.
+  const tvaParLigne = draft.entite === "FR" && !autoliq;
 
   const echeances = buildEcheancierPaiement(totaux.montant_ttc, draft.mode_paiement);
 
@@ -81,6 +87,33 @@ export function DevisPreview() {
                     {m(l.total_ht)}
                   </span>
                 </div>
+                {/* TVA de la ligne : éditable en FR (hors autoliq), sinon lue. */}
+                <div className="mt-0.5 flex items-center justify-between text-[11px]">
+                  {tvaParLigne && l.article_id ? (
+                    <label className="flex items-center gap-1 text-muted">
+                      TVA
+                      <select
+                        aria-label={`TVA — ${l.designation}`}
+                        title={AIDE_TVA_FR}
+                        value={l.taux_tva}
+                        onChange={(e) =>
+                          setTauxLigne(l.article_id!, Number(e.target.value))
+                        }
+                        className="rounded border border-line bg-surface px-1 py-0.5 font-mono text-[11px] text-ink"
+                      >
+                        {TAUX_TVA_FR.map((o) => (
+                          <option key={o.taux} value={o.taux}>
+                            {o.court}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <span className="font-mono text-muted">
+                      TVA {autoliq ? "0 % (autoliq.)" : pctTva(l.taux_tva)}
+                    </span>
+                  )}
+                </div>
                 {interne ? (
                   <div className="mt-0.5 flex justify-between font-mono text-[11px] text-muted">
                     <span>
@@ -114,13 +147,31 @@ export function DevisPreview() {
           ) : (
             <Row label="Total HT" value={m(totaux.montant_ht)} />
           )}
-          <Row label={tvaLabel} value={m(totaux.montant_tva)} />
+          {/* Ventilation par taux (Art. 242 nonies A) : une ligne base + TVA
+              par taux distinct. Un seul taux → une seule ligne. */}
+          {autoliq ? (
+            <Row label="TVA — autoliquidation" value={m(0)} />
+          ) : (
+            totaux.ventilation.map((v) => (
+              <Row
+                key={v.taux}
+                label={`TVA ${pctTva(v.taux)} · base ${m(v.base_ht)}`}
+                value={m(v.montant_tva)}
+              />
+            ))
+          )}
           {/* Aucune aide déduite : le TTC est le montant dû par le client. */}
           <Row label="Total TTC" value={m(totaux.montant_ttc)} strong />
         </div>
 
         {totaux.remise > 0 ? (
           <p className="mt-2 text-[11px] text-muted">{MENTION_REMISE}</p>
+        ) : null}
+        {totaux.ventilation.length > 1 ? (
+          <p className="mt-2 text-[11px] text-muted">
+            Document soumis à plusieurs taux de TVA — ventilation ci-dessus (Art.
+            242 nonies A CGI).
+          </p>
         ) : null}
         {opt.mention ? (
           <p className="mt-2 text-[11px] text-muted">{opt.mention}</p>

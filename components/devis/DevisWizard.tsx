@@ -21,7 +21,7 @@ import { useSettings } from "@/lib/settings/store";
 import { prixArticle } from "@/lib/catalogue/prix";
 import type { CatalogueArticle } from "@/lib/catalogue/types";
 import { useLeadsStore } from "@/lib/leads/store";
-import { entiteConfig, optionTva, ENTITE_LABEL } from "@/lib/entite/config";
+import { entiteConfig, ENTITE_LABEL } from "@/lib/entite/config";
 import { generateDevisPdf } from "@/lib/leads/devis";
 import type { DevisDraft, ModeDevis, VueDevis } from "@/lib/devis/types";
 import { MODE_DEVIS_LABEL, WIZARD_STEPS } from "@/lib/devis/types";
@@ -95,8 +95,9 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   );
   const totaux = useMemo(() => {
     if (!draft) return null;
-    const taux = optionTva(draft.entite, draft.mode_tva).taux;
-    return computeTotaux(lignes, taux, {
+    // La TVA est portée par chaque ligne (deriveLignes) ; computeTotaux la
+    // ventile. Plus de taux global passé ici.
+    return computeTotaux(lignes, {
       type: draft.remise_type,
       valeur: draft.remise_valeur,
     });
@@ -135,6 +136,15 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
               quantite > 0 ? [...rest, { article_id: articleId, quantite }] : rest,
           };
         }),
+      setTauxLigne: (articleId, taux) =>
+        setDraft((d) =>
+          d
+            ? {
+                ...d,
+                taux_tva_overrides: { ...d.taux_tva_overrides, [articleId]: taux },
+              }
+            : d,
+        ),
       toggleControle: (key) =>
         setDraft((d) => {
           if (!d) return d;

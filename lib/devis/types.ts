@@ -26,6 +26,7 @@ export interface DevisLigne {
   taux_marge: number; // marge sur PV appliquée à cette ligne
   pu_ht: number; // PU vente HT dérivé = cout_ht / (1 − marge)
   total_ht: number; // pu_ht × quantite
+  taux_tva: number; // TVA de la ligne (0.055 / 0.10 / 0.20 en FR, 0.20 en MA)
   /**
    * URL de la fiche produit à encoder en QR sur le devis. Renseignée UNIQUEMENT
    * pour une borne dont le QR est activé — la règle est tranchée à la dérivation
@@ -105,7 +106,17 @@ export interface DevisDraft {
   remise_type: "percent" | "montant";
   remise_valeur: number;
   remise_motif: string;
+  /**
+   * Régime TVA du devis : `fr_5_5` = taux PAR LIGNE (France),
+   * `fr_autoliquidation` = tout à 0 % (B2B BTP), `ma_20` = MA figé 20 %.
+   */
   mode_tva: ModeTva;
+  /**
+   * Surcharges de taux TVA par article (France). Clé = article_id (les ids de
+   * ligne ne sont pas stables entre deux dérivations, l'article_id l'est).
+   * Absent = taux par défaut de la catégorie.
+   */
+  taux_tva_overrides: Record<string, number>;
   mode_paiement: ModePaiement;
   /** Proposer Alma 2x/3x/4x au client (FR uniquement — ignoré/masqué en MA). */
   alma_propose: boolean;

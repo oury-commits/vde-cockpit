@@ -122,10 +122,29 @@ export interface LigneDevis {
   label: string;
   /** Montant HT de la ligne, en euros. */
   montant_ht: number;
+  /**
+   * Taux de TVA de CETTE ligne (0.055, 0.10, 0.20…). Un devis peut porter
+   * plusieurs taux (France) ; MA est figé à 0.20. Optionnel pour compat avec
+   * les documents émis avant la TVA par ligne → on retombe alors sur le taux
+   * global du document.
+   */
+  taux_tva?: number;
   /** Fiche produit à encoder en QR sur le PDF (bornes uniquement). */
   url_produit?: string | null;
   /** Catégorie catalogue d'origine (sert au modèle d'email : « votre borne »). */
   categorie?: string | null;
+}
+
+/**
+ * Ventilation de la TVA par taux (Art. 242 nonies A, I CGI) : un document à
+ * plusieurs taux doit présenter, PAR TAUX distinct, la base HT et la TVA — pas
+ * un unique bloc global. `base_ht` est la base APRÈS remise (remise allouée au
+ * prorata de chaque taux).
+ */
+export interface VentilationTva {
+  taux: number;
+  base_ht: number;
+  montant_tva: number;
 }
 
 /**
@@ -157,7 +176,10 @@ export interface Devis {
   remise?: RemiseInfo | null;
   montant_ht: number; // HT NET (après remise) — base de la TVA
   mode_tva: ModeTva;
-  taux_tva: number; // 0.055, 0.10, 0.20, ou 0 (autoliquidation)
+  /** Taux global (compat). 0 = « mixte » quand plusieurs taux → voir ventilation. */
+  taux_tva: number;
+  /** Ventilation TVA par taux (source de vérité quand plusieurs taux). */
+  ventilation_tva?: VentilationTva[];
   montant_tva: number;
   montant_ttc: number;
   statut: "brouillon" | "envoye" | "signe";
@@ -206,7 +228,9 @@ export interface Facture {
   remise?: RemiseInfo | null;
   montant_ht: number; // HT net (après remise)
   mode_tva: ModeTva;
-  taux_tva: number;
+  taux_tva: number; // 0 = mixte (plusieurs taux) → voir ventilation_tva
+  /** Ventilation TVA par taux (Art. 242 nonies A). */
+  ventilation_tva?: VentilationTva[];
   montant_tva: number;
   montant_ttc: number;
   /** Factures d'acompte déduites (facture de solde uniquement — Bloc C). */

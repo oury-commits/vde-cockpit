@@ -9,7 +9,6 @@ import { formatMontant } from "@/lib/format";
 import { MARGE_MAX, margeNiveau } from "@/lib/devis/pricing";
 import { almaPhrase } from "@/lib/leads/reglements";
 import type { ModePaiement } from "@/lib/devis/types";
-import type { ModeTva } from "@/lib/types";
 
 export function StepSynthese() {
   const { draft, totaux, patch } = useWizard();
@@ -49,17 +48,38 @@ export function StepSynthese() {
               <span className="text-sm text-muted">%</span>
             </div>
           </Field>
-          <Field label="Régime de TVA">
-            <Select
-              value={draft.mode_tva}
-              onChange={(e) => patch({ mode_tva: e.target.value as ModeTva })}
-            >
-              {cfgEntite.tvaOptions.map((o) => (
-                <option key={o.mode} value={o.mode}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
+          <Field
+            label="Régime de TVA"
+            hint={
+              draft.entite === "MA"
+                ? "Maroc : 20 % (figé)."
+                : draft.mode_tva === "fr_autoliquidation"
+                  ? "Tout le devis à 0 % — TVA due par le preneur."
+                  : "Taux choisi par ligne dans l'aperçu (défaut 5,5 %)."
+            }
+          >
+            {draft.entite === "MA" ? (
+              <div className="flex h-9 items-center rounded-lg border border-line bg-cream/50 px-3 text-sm text-muted">
+                20 % — standard
+              </div>
+            ) : (
+              <Select
+                value={
+                  draft.mode_tva === "fr_autoliquidation" ? "autoliq" : "ligne"
+                }
+                onChange={(e) =>
+                  patch({
+                    mode_tva:
+                      e.target.value === "autoliq"
+                        ? "fr_autoliquidation"
+                        : "fr_5_5",
+                  })
+                }
+              >
+                <option value="ligne">Taux par ligne (5,5 / 10 / 20)</option>
+                <option value="autoliq">Autoliquidation (B2B BTP)</option>
+              </Select>
+            )}
           </Field>
         </div>
       </section>

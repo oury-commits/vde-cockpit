@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { CatalogueArticle } from "@/lib/catalogue/types";
 import type { DevisTotaux } from "@/lib/devis/pricing";
-import type {
+import type {
   ControleLigne,
   DevisClient,
   DevisConfig,
@@ -26,8 +26,10 @@ export interface WizardValue {
   setVue: (v: VueDevis) => void;
   patch: (partial: Partial<DevisDraft>) => void;
   patchClient: (partial: Partial<DevisClient>) => void;
-  patchConfig: (partial: Partial<DevisConfig>) => void;
+  patchConfig: (partial: Partial<DevisConfig>) => void;
   setSupplement: (articleId: string, quantite: number) => void;
+  /** Surcharge le taux TVA d'une ligne (par article_id). France uniquement. */
+  setTauxLigne: (articleId: string, taux: number) => void;
   toggleControle: (key: ControleLigne["key"]) => void;
 }
 
