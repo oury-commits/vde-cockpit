@@ -3,6 +3,7 @@ import type { ActiveEntite } from "@/lib/entite/EntityProvider";
 import { StatCard } from "@/components/ui/StatCard";
 import { formatMontant } from "@/lib/format";
 import { relanceState } from "@/lib/leads/filters";
+import { totalRegle } from "@/lib/leads/reglements";
 
 /** Bandeau KPI compact — valeurs dérivées du store, dans la devise de l'entité. */
 export function KpiRow({
@@ -25,13 +26,15 @@ export function KpiRow({
     (l) => l.devis && l.devis.statut !== "signe",
   ).length;
 
+  // « Encaissé » = registre des règlements (source de vérité), PAS l'échéancier :
+  // un règlement partiel ne marque pas l'échéance à son montant plein, et une
+  // échéance peut être basculée sans règlement. On lit donc `totalRegle`, comme
+  // la fiche (PaiementsCard), pour que les deux écrans ne divergent jamais.
   let encaisse = 0;
   let attendu = 0;
   for (const l of leads) {
-    for (const e of l.echeancier ?? []) {
-      attendu += e.montant;
-      if (e.statut === "encaisse") encaisse += e.montant;
-    }
+    encaisse += totalRegle(l);
+    for (const e of l.echeancier ?? []) attendu += e.montant;
   }
 
   // En "Tous", les montants mêlent EUR et MAD → on ne les additionne pas.

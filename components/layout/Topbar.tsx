@@ -36,8 +36,9 @@ export function Topbar() {
           className="relative grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-cream hover:text-ink"
         >
           <Bell className="size-[18px]" strokeWidth={1.75} />
-          {/* TODO: brancher données réelles — indicateur de notifications statique */}
-          <span className="absolute right-2 top-2 size-1.5 rounded-full bg-alert" />
+          {/* Pas de pastille « non lu » factice : un point d'alerte statique
+              simule des notifications actionnables qui n'existent pas encore.
+              TODO: rebrancher l'indicateur quand les notifications seront réelles. */}
         </button>
         {peutCreerDevis ? (
           <Link

@@ -11,11 +11,9 @@ import {
   TAUX_TVA_FR,
   buildEcheancierPaiement,
 } from "@/lib/devis/pricing";
-import { MENTION_REMISE } from "@/lib/devis/remise";
+import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
+import { pctTva } from "@/lib/devis/tva";
 import { MODE_PAIEMENT_LABEL } from "@/lib/devis/types";
-
-const pctTva = (t: number) =>
-  `${new Intl.NumberFormat("fr-FR").format(t * 100)} %`;
 
 const ECHEANCE_LABEL: Record<string, string> = {
   acompte: "Acompte",
@@ -134,11 +132,14 @@ export function DevisPreview() {
             <>
               <Row label="Total HT brut" value={m(totaux.montant_ht_brut)} />
               <Row
-                label={
-                  totaux.remise_type === "percent"
-                    ? `Remise ${new Intl.NumberFormat("fr-FR").format(totaux.remise_valeur)} %`
-                    : "Remise"
-                }
+                // Même libellé que le PDF (helper partagé) — aperçu et document
+                // ne peuvent pas formater la remise différemment.
+                label={remiseLabel({
+                  type: totaux.remise_type,
+                  valeur: totaux.remise_valeur,
+                  montant: totaux.remise,
+                  motif: draft.remise_motif.trim() || null,
+                })}
                 value={`− ${m(totaux.remise)}`}
                 tone="gold"
               />

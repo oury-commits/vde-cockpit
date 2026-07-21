@@ -656,6 +656,10 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       const lead = leads.find((l) => l.id === leadId);
       if (!lead || !lead.devis || lead.devis.statut !== "signe") return null;
       if (lead.facture) return lead.facture; // déjà émise (numérotation unique)
+      // Défense : un dossier avec acomptes se clôture par une facture de SOLDE
+      // (genererFactureSolde), pas une facture normale — sinon on facturerait le
+      // total une 2e fois. Le numéro n'est réservé qu'après cette garde.
+      if ((lead.factures_acompte?.length ?? 0) > 0) return null;
       // Facture = séquence continue par entité, réservée à l'émission.
       const ref = await reserveRef(lead.entite, "facture");
       const facture = buildFacture(lead.devis, ref, new Date().toISOString());
