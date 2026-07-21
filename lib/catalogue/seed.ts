@@ -12,6 +12,11 @@ import type {
 interface Opts {
   a_confirmer?: boolean;
   inclus?: boolean;
+  /**
+   * Coût MA surchargé (DH). Par défaut le MA dérive de `cout_ht × taux` ; on
+   * l'épingle quand on veut caler un coût FR SANS bouger le prix marocain.
+   */
+  cout_ma?: number | null;
 }
 
 export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
@@ -29,7 +34,7 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
     categorie,
     unite,
     cout_ht,
-    cout_ma: null, // prix MA dérivé du taux tant qu'il n'est pas surchargé
+    cout_ma: o.cout_ma ?? null, // MA dérivé du taux, sauf surcharge explicite
     url_produit: null, // TODO: brancher données réelles — fiches produit du site VDE
     afficher_qr: false,
     entite: "FR",
@@ -43,7 +48,12 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
 
   return [
     // ── Bornes (sûr) ──
-    art("V2C Trydan 7 kW", "borne", "u", 599),
+    // Borne standard IRVE résidentiel FR (mono 7,4 kW). Coût calé pour que le
+    // pack standard (borne + pose 5 m câble inclus + disjoncteur + Consuel)
+    // totalise 1 100 € HT de coût → ~1 692 € HT / ~1 785 € TTC à 35 % de marge.
+    // Le prix reste DÉRIVÉ du coût (jamais 1 790 € en dur). `cout_ma` épinglé à
+    // 6469 DH pour ne pas bouger le prix marocain (sinon dérivé de 420 × taux).
+    art("V2C Trydan 7,4 kW", "borne", "u", 420, { cout_ma: 6469 }),
     art("V2C Trydan triphasé 11-22 kW", "borne", "u", 650),
     art("Ohme ePod S 7 kW (lot ×15)", "borne", "u", 500),
     art("Ohme ePod S 7 kW (×1)", "borne", "u", 430),
@@ -85,7 +95,7 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
 
     // ── Consommables & suppléments (à confirmer) ──
     art("Visserie & fixations", "consommable", "u", 15, { a_confirmer: true, inclus: true }),
-    art("Disjoncteur + bloc différentiel monophasé 40 A IRVE", "consommable", "u", 149.99, { a_confirmer: true, inclus: true }),
+    art("Disjoncteur + bloc différentiel monophasé 40 A IRVE", "consommable", "u", 150, { a_confirmer: true, inclus: true }),
     art("Disjoncteur + bloc différentiel 40 3P+N IRVE (tri)", "consommable", "u", 309.99, { a_confirmer: true, inclus: true }),
     art("Traversée de mur", "consommable", "u", 55, { a_confirmer: true }),
     art("Protection IP66 extérieur", "consommable", "u", 80, { a_confirmer: true }),
