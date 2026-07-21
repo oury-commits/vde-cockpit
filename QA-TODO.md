@@ -131,24 +131,48 @@ le monde : la base répondra 0 ligne à un utilisateur que l'écran croit admin.
    construction, et retirer `DevIdentityBar` / `NEXT_PUBLIC_AUTH_DISABLED`.
 4. Faire lire aux repositories `profiles` et `interventions` la base plutôt que
    le jeu local, et faire passer les rôles aveugles aux montants par la vue
-   `chantiers` au lieu de `leads`.
-5. Vérifier les trois requêtes de contrôle en fin de 0015 (aucune policy
-   `anon`/`public`, aucune table sans RLS).
+   `chantiers` au lieu de `leads` (voir règle ci-dessous).
+5. Vérifier les requêtes de contrôle en fin de 0015 **et** de 0016 (aucune
+   policy `anon`/`public` — ni public ni storage, aucune table sans RLS).
 
 Tant que 1 à 4 ne sont pas faits : **aucun compte salarié avec de vraies
 données.**
 
-#### Restes connus après 0015
+#### RÈGLE — accès terrain sans les montants (à ne jamais enfreindre)
 
-- **Storage** (`documents`) : les policies de 0011 sont encore
-  `authenticated` sans distinction d'entité. Un chemin d'objet préfixé par
-  l'entité permettrait de les cloisonner ; à faire avant d'y déposer de vrais
-  PDF clients.
+La RLS filtre des **lignes**, pas des **colonnes**. Un rôle aveugle aux montants
+(conducteur de travaux, technicien) n'a **aucun** accès à `leads` : il lit le
+terrain par la vue **`chantiers`**, et uniquement par elle.
+
+Deux invariants qui vont ensemble :
+- ces rôles lisent **toujours** par `chantiers`, **jamais** par `leads` ;
+- **aucun champ financier n'entre jamais dans `chantiers`** (ni `montant_estime`,
+  ni `devis`, ni `facture`, ni `echeancier`, ni un futur champ prix). Le jour où
+  on ajoute une colonne à cette vue, la question à se poser est : « est-ce que ça
+  parle d'argent ? » Si oui, elle n'y va pas.
+
+C'est pour ça que `chantiers` a `security_invoker = off` et porte sa propre
+clause de cloisonnement : elle s'exécute au-dessus de la RLS de `leads`, donc
+c'est elle qui doit être irréprochable.
+
+#### Storage — cloisonné (migration 0016)
+
+Fait. Les policies plates de 0011 (`authenticated` sans distinction) sont
+remplacées : lecture/écriture bornées à l'entité via le préfixe du chemin
+(`FR/…`, `MA/…`), réservées aux rôles qui manipulent des devis, suppression
+admin seule. Prouvé par `npm run test:rls` (section Storage) et validé par
+mutation. Un compte FR ne lit ni ne dépose sous `MA/`, et inversement.
+
+#### Restes connus
+
 - **Dernier admin** : l'invariant « il reste toujours un administrateur actif »
-  n'existe que dans l'écran Équipe. Un trigger en base le rendrait infalsifiable.
-- **Double matrice** : `app_peut()` (SQL, fait foi) duplique
-  `lib/roles/permissions.ts` (UI). Toute évolution se fait des deux côtés,
-  sinon l'écran promet un accès que la base refuse.
+  n'existe que dans l'écran Équipe. À passer en **contrainte / trigger base**
+  pour le rendre infalsifiable (une écriture directe peut aujourd'hui retirer
+  le dernier admin).
+- **Double matrice** : `app_peut()` (SQL, **fait foi**) duplique
+  `lib/roles/permissions.ts` (UI, confort d'affichage). Toute évolution se fait
+  des deux côtés, sinon l'écran promet un accès que la base refuse. Un test qui
+  compare les deux matrices colonne par colonne éviterait la dérive.
 
 ---
 
