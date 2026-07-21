@@ -49,6 +49,9 @@ export function buildDevisSnapshot(
     taux_tva: totaux.taux_tva,
     montant_tva: totaux.montant_tva,
     montant_ttc: totaux.montant_ttc,
+    // Alma : FR uniquement. En MA le drapeau est ignoré (jamais figé).
+    alma_propose: draft.entite === "FR" ? draft.alma_propose : false,
+    alma_plan: draft.alma_plan,
     statut,
   };
 }

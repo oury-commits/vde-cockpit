@@ -26,6 +26,8 @@ import { computeFaisabilite, FAISABILITE_META } from "@/lib/leads/faisabilite";
 import { computeEstimation } from "@/lib/leads/estimation";
 import { generateDevisPdf } from "@/lib/leads/devis";
 import { generateFacturePdf } from "@/lib/leads/facture";
+import { aEncaissement } from "@/lib/leads/reglements";
+import { PaiementsCard } from "@/components/leads/fiche/PaiementsCard";
 import { entiteConfig } from "@/lib/entite/config";
 import {
   CANAL_LABEL,
@@ -165,6 +167,10 @@ export function LeadFiche() {
   const fm = FAISABILITE_META[faisabilite.niveau];
   const step = stepIndex(lead);
   const tel = lead.telephone.replace(/\s/g, "");
+  // « Planifié » (RDV confirmé) reste verrouillé tant qu'aucun acompte encaissé,
+  // sauf si le dossier y est déjà.
+  const rdvDeverrouille =
+    aEncaissement(lead) || lead.statut === "planifie" || lead.statut === "installe";
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id, tvaMode || undefined);
@@ -209,8 +215,15 @@ export function LeadFiche() {
             className="ml-auto h-8 w-auto text-[13px]"
           >
             {STATUT_ORDER.map((s) => (
-              <option key={s} value={s}>
+              <option
+                key={s}
+                value={s}
+                // Verrou RDV : « planifié » indisponible tant qu'aucun acompte
+                // n'est encaissé (le store refuse aussi la transition).
+                disabled={s === "planifie" && !rdvDeverrouille}
+              >
                 {STATUT_META[s].label}
+                {s === "planifie" && !rdvDeverrouille ? " — acompte requis" : ""}
               </option>
             ))}
           </Select>
@@ -493,6 +506,9 @@ export function LeadFiche() {
             </Button>
           ) : null}
         </Card>
+
+        {/* Règlements — jauge payé/reste, registre, verrou RDV (dès signature) */}
+        {lead.devis?.statut === "signe" ? <PaiementsCard lead={lead} /> : null}
 
         {/* Historique */}
         <Card className="lg:col-span-2">

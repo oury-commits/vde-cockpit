@@ -7,6 +7,7 @@ import { useWizard } from "@/components/devis/context";
 import { entiteConfig } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
 import { MARGE_MAX, margeNiveau } from "@/lib/devis/pricing";
+import { almaPhrase } from "@/lib/leads/reglements";
 import type { ModePaiement } from "@/lib/devis/types";
 import type { ModeTva } from "@/lib/types";
 
@@ -156,16 +157,65 @@ export function StepSynthese() {
       ) : null}
 
       <section>
-        <h3 className="mb-3 text-sm font-semibold text-ink">Paiement</h3>
+        <h3 className="mb-1 text-sm font-semibold text-ink">
+          Acomptes VDE (versements directs)
+        </h3>
+        <p className="mb-3 text-[13px] text-muted">
+          Chaque échéance est un versement du client à VDE. 2 versements par
+          défaut.
+        </p>
         <Segmented
           value={draft.mode_paiement}
           onChange={(v) => patch({ mode_paiement: v as ModePaiement })}
           options={[
-            { value: "40_40_20", label: "40 / 40 / 20" },
-            { value: "50_50", label: "50 / 50" },
+            { value: "50_50", label: "2 versements" },
+            { value: "40_40_20", label: "3 versements" },
           ]}
         />
       </section>
+
+      {/* Alma — mode de paiement par un tiers, FR UNIQUEMENT (pas d'Alma en MA) */}
+      {draft.entite === "FR" ? (
+        <section className="rounded-xl border border-line p-4">
+          <label className="flex items-start gap-2.5">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-brand"
+              checked={draft.alma_propose}
+              onChange={(e) => patch({ alma_propose: e.target.checked })}
+            />
+            <span className="text-sm">
+              <span className="font-semibold text-ink">
+                Proposer le paiement en 2x / 3x / 4x (Alma)
+              </span>
+              <span className="mt-0.5 block text-[13px] text-muted">
+                Facilité affichée au client. Alma paie VDE en une fois : aucun
+                solde à suivre côté VDE.
+              </span>
+            </span>
+          </label>
+          {draft.alma_propose ? (
+            <div className="mt-3 pl-6">
+              <Field label="Nombre d'échéances Alma">
+                <Segmented
+                  value={String(draft.alma_plan)}
+                  onChange={(v) =>
+                    patch({ alma_plan: Number(v) as 2 | 3 | 4 })
+                  }
+                  options={[
+                    { value: "2", label: "2x" },
+                    { value: "3", label: "3x" },
+                    { value: "4", label: "4x" },
+                  ]}
+                />
+              </Field>
+              <p className="mt-2 font-mono text-xs text-muted">
+                {almaPhrase(totaux.montant_ttc, draft.alma_plan, m)}
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section>
         <Field label="Notes (bas de devis)">

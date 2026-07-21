@@ -90,6 +90,33 @@ export interface Echeance {
   date_encaissement?: string | null;
 }
 
+/**
+ * Moyen d'un règlement REÇU par VDE.
+ * `alma` est à part : Alma paie VDE en une fois (le client rembourse Alma).
+ * Un règlement Alma solde donc le dossier — voir `estSoldeAlma`. Les autres
+ * modes sont des versements directs du client (acomptes / solde VDE).
+ */
+export type ReglementMode = "virement" | "cheque" | "cb" | "especes" | "alma";
+
+/**
+ * Un encaissement réellement reçu. Source de vérité du « payé / reste » : le
+ * solde se calcule TOUJOURS depuis ce registre, jamais saisi à la main.
+ */
+export interface Reglement {
+  id: string;
+  lead_id: string;
+  entite: Entite;
+  montant: number;
+  mode: ReglementMode;
+  /** Facture d'acompte émise pour ce versement (null pour un solde/Alma). */
+  facture_acompte_ref?: string | null;
+  encaisse_le: string;
+  auteur: string;
+}
+
+/** Plan de paiement fractionné Alma proposé au client (FR uniquement). */
+export type AlmaPlan = 2 | 3 | 4;
+
 /** Une ligne de devis. */
 export interface LigneDevis {
   label: string;
@@ -134,10 +161,33 @@ export interface Devis {
   montant_tva: number;
   montant_ttc: number;
   statut: "brouillon" | "envoye" | "signe";
+  /**
+   * Option Alma 2x/3x/4x proposée au client (FR uniquement — jamais en MA).
+   * C'est une facilité de paiement affichée, PAS un échéancier VDE : Alma paie
+   * VDE en une fois, donc aucun solde à suivre côté VDE quand le client la choisit.
+   */
+  alma_propose?: boolean;
+  alma_plan?: AlmaPlan;
   /** Horodatage de l'envoi au client (null tant que non envoyé). */
   envoye_le?: string | null;
   /** Destinataire du dernier envoi. */
   envoye_a?: string | null;
+}
+
+/**
+ * Type d'une facture. `normale` = dossier payé en une fois. `acompte` = émise à
+ * chaque versement (Art. 289 CGI). `solde` = facture finale qui déduit les
+ * acomptes déjà facturés (Bloc C).
+ */
+export type FactureType = "normale" | "acompte" | "solde";
+
+/** Facture d'acompte déduite sur une facture de solde (n° + date + montants). */
+export interface AcompteDeduit {
+  ref: string;
+  date: string;
+  montant_ht: number;
+  montant_tva: number;
+  montant_ttc: number;
 }
 
 /** Facture — issue d'un devis signé. Numérotation continue par entité. */
@@ -147,6 +197,8 @@ export interface Facture {
   devise: Devise;
   date_creation: string;
   devis_ref: string; // devis d'origine
+  /** Type (défaut `normale` pour les factures émises avant le fractionnement). */
+  type?: FactureType;
   lignes: LigneDevis[];
   /** HT avant remise (reporté du devis). Absent = pas de remise. */
   montant_ht_brut?: number;
@@ -157,6 +209,8 @@ export interface Facture {
   taux_tva: number;
   montant_tva: number;
   montant_ttc: number;
+  /** Factures d'acompte déduites (facture de solde uniquement — Bloc C). */
+  acomptes_deduits?: AcompteDeduit[];
   /** Horodatage de l'envoi au client (null tant que non envoyée). */
   envoye_le?: string | null;
   /** Destinataire du dernier envoi. */
@@ -227,8 +281,13 @@ export interface Lead {
   montant_estime?: number | null;
 
   devis?: Devis | null;
+  /** Facture de clôture : `normale` (dossier simple) ou `solde` (après acomptes). */
   facture?: Facture | null;
+  /** Factures d'acompte émises au fil des versements (Art. 289 CGI). */
+  factures_acompte?: Facture[] | null;
   echeancier?: Echeance[] | null;
+  /** Registre des encaissements — source de vérité du payé / reste. */
+  reglements?: Reglement[] | null;
 
   prochaine_action?: string | null;
   date_relance?: string | null;

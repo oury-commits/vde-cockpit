@@ -4,6 +4,7 @@ import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { QR_LABEL, qrDataUrl } from "@/lib/devis/qr";
 import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
+import { almaPhrase } from "@/lib/leads/reglements";
 import { buildLignes } from "@/lib/leads/pricing";
 
 export { buildLignes } from "@/lib/leads/pricing";
@@ -49,16 +50,18 @@ export function buildDevis(
   };
 }
 
-/** Échéancier 40 / 40 / 20 généré à la signature (§6.6). */
+/**
+ * Échéancier d'acomptes VDE par défaut : 2 versements (acompte 50 % + solde
+ * 50 %), le cas majoritaire. Le solde absorbe l'arrondi. Le wizard peut imposer
+ * un autre plan (3 versements) qui est alors conservé tel quel.
+ */
 export function buildEcheancier(ttc: number): Echeance[] {
   const round = (n: number) => Math.round(n * 100) / 100;
-  const acompte = round(ttc * 0.4);
-  const demarrage = round(ttc * 0.4);
-  const solde = round(ttc - acompte - demarrage);
+  const acompte = round(ttc * 0.5);
+  const solde = round(ttc - acompte);
   return [
-    { label: "acompte", pct: 40, montant: acompte, statut: "attendu" },
-    { label: "demarrage", pct: 40, montant: demarrage, statut: "attendu" },
-    { label: "solde", pct: 20, montant: solde, statut: "attendu" },
+    { label: "acompte", pct: 50, montant: acompte, statut: "attendu" },
+    { label: "solde", pct: 50, montant: solde, statut: "attendu" },
   ];
 }
 
@@ -199,7 +202,23 @@ async function buildDevisDoc(
   doc.setFontSize(11);
   tot("Total TTC", eur(devis.montant_ttc), true);
 
-  // Échéancier (fourni par l'appelant, sinon 40/40/20 par défaut)
+  // Option Alma (FR uniquement) : facilité de paiement affichée, pas un
+  // échéancier VDE. « ou 4× 750,00 € sans frais avec Alma ».
+  if (devis.entite === "FR" && devis.alma_propose && devis.alma_plan) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...MUTED);
+    doc.text(
+      almaPhrase(devis.montant_ttc, devis.alma_plan, eur),
+      pageW - mx,
+      y,
+      { align: "right" },
+    );
+    doc.setTextColor(...INK);
+    y += 6;
+  }
+
+  // Échéancier (fourni par l'appelant, sinon défaut 2 versements)
   const echeances = echeancier ?? buildEcheancier(devis.montant_ttc);
   const plan = echeances.map((e) => e.pct).join(" / ");
   y += 6;

@@ -39,10 +39,16 @@ export function jalonsDerives(lead: Lead): JalonDerive[] {
     {
       key: "acompte",
       label: "Acompte reçu",
-      actif: Boolean(
-        lead.echeancier?.some((e) => e.label === "acompte" && e.statut === "encaisse"),
-      ),
-      source: "défini par l'échéancier",
+      // Allumé dès qu'un encaissement figure au registre (acompte VDE ou Alma) —
+      // ou, à défaut de registre, depuis l'échéancier (compat).
+      actif:
+        (lead.reglements?.length ?? 0) > 0 ||
+        Boolean(
+          lead.echeancier?.some(
+            (e) => e.label === "acompte" && e.statut === "encaisse",
+          ),
+        ),
+      source: "défini par le registre des règlements",
     },
     {
       key: "installe",
