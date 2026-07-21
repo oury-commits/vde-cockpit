@@ -5,7 +5,13 @@ import type {
   Facture,
   Lead,
   Reglement,
+  VentilationTva,
 } from "@/lib/types";
+import {
+  ventilationDe,
+  ventilationProrata,
+  ventilationSolde,
+} from "@/lib/devis/tva";
 
 // Calculs de règlement. Règle d'or : le « payé / reste » se lit TOUJOURS depuis
 // le registre `reglements`, jamais d'un champ saisi à la main.
@@ -66,9 +72,15 @@ export function buildFactureAcompte(
   ref: string,
   dateISO: string,
 ): Facture {
-  const taux = devis.taux_tva;
-  const ht = round2(montantTtc / (1 + taux));
-  const tva = round2(montantTtc - ht);
+  // L'acompte reprend la ventilation du marché AU PRORATA : sa TVA se ventile
+  // par taux comme le devis, chaque taux au bon poids (Art. 242 nonies A + 289).
+  const ventilation: VentilationTva[] = ventilationProrata(
+    ventilationDe(devis),
+    montantTtc,
+    devis.montant_ttc,
+  );
+  const ht = round2(ventilation.reduce((s, v) => s + v.base_ht, 0));
+  const tva = round2(ventilation.reduce((s, v) => s + v.montant_tva, 0));
   return {
     ref,
     entite: devis.entite,
@@ -84,7 +96,8 @@ export function buildFactureAcompte(
     ],
     montant_ht: ht,
     mode_tva: devis.mode_tva,
-    taux_tva: taux,
+    taux_tva: ventilation.length === 1 ? ventilation[0].taux : 0,
+    ventilation_tva: ventilation,
     montant_tva: tva,
     montant_ttc: round2(montantTtc),
   };
@@ -148,6 +161,12 @@ export function buildFactureSolde(
     montant_ttc: f.montant_ttc,
   }));
   const cumul = totalAcomptes(acomptes);
+  // Ventilation du solde = marché − acomptes, taux par taux → TVA régularisée
+  // automatiquement (Art. 242 nonies A + 289 CGI).
+  const ventilation: VentilationTva[] = ventilationSolde(
+    ventilationDe(d),
+    (lead.factures_acompte ?? []).map((f) => ventilationDe(f)),
+  );
   return {
     ref,
     entite: d.entite,
@@ -163,7 +182,8 @@ export function buildFactureSolde(
     // Montants de CETTE facture = le solde (marché − acomptes), TVA régularisée.
     montant_ht: round2(d.montant_ht - cumul.ht),
     mode_tva: d.mode_tva,
-    taux_tva: d.taux_tva,
+    taux_tva: ventilation.length === 1 ? ventilation[0].taux : 0,
+    ventilation_tva: ventilation,
     montant_tva: round2(d.montant_tva - cumul.tva),
     montant_ttc: round2(d.montant_ttc - cumul.ttc),
     acomptes_deduits: acomptes,

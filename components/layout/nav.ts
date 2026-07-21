@@ -55,8 +55,9 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "File de validation IA",
         href: "/validation",
         icon: Sparkles,
-        // TODO: brancher données réelles — compteur statique de démo
-        badge: 3,
+        // Pas de badge tant que l'écran est un placeholder : un compteur « 3 »
+        // sur un module « à venir » laisse croire à une file active (piège).
+        // TODO: rebrancher le compteur quand /validation sera réel.
       },
       { label: "Boîte de réception", href: "/inbox", icon: Inbox },
       { label: "Planning & tournées", href: "/planning", icon: CalendarDays },

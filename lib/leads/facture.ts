@@ -4,6 +4,7 @@ import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
 import { MENTION_SOLDE, marcheDeSolde } from "@/lib/leads/reglements";
+import { pctTva, ventilationDe } from "@/lib/devis/tva";
 
 /**
  * Prochaine ref de facture, NUMÉROTATION CONTINUE SANS TROU par entité
@@ -118,14 +119,28 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     doc.text(val, pageW - mx, y, { align: "right" });
     y += 6;
   };
-  const tvaLabel =
-    facture.mode_tva === "fr_autoliquidation"
-      ? "TVA — autoliquidation"
-      : `TVA ${new Intl.NumberFormat("fr-FR").format(facture.taux_tva * 100)} %`;
+  const autoliq = facture.mode_tva === "fr_autoliquidation";
+  const ventilation = ventilationDe(facture);
+  const multiTaux = ventilation.length > 1;
+  // Rend la ventilation TVA par taux (Art. 242 nonies A). `regularisee` sur la
+  // facture de solde pour acter la régularisation.
+  const rendTva = (regularisee = false) => {
+    if (autoliq) {
+      tot("TVA — autoliquidation", m(0));
+      return;
+    }
+    for (const v of ventilation) {
+      const base = multiTaux ? ` · base ${m(v.base_ht)}` : "";
+      tot(
+        `TVA ${pctTva(v.taux)}${base}${regularisee ? " (régularisée)" : ""}`,
+        m(v.montant_tva),
+      );
+    }
+  };
 
   if (facture.type === "solde") {
     // Facture de SOLDE : rappel du marché (remise reportée, jamais recomptée) →
-    // acomptes déjà facturés, déduits → solde à payer, TVA régularisée.
+    // acomptes déjà facturés, déduits → solde à payer, TVA régularisée par taux.
     const marche = marcheDeSolde(facture);
     if (facture.remise && facture.remise.montant > 0) {
       tot("Total HT brut (marché)", m(facture.montant_ht_brut ?? marche.ht));
@@ -134,7 +149,7 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     } else {
       tot("Total HT (marché)", m(marche.ht));
     }
-    tot(tvaLabel, m(marche.tva));
+    tot("TVA (marché)", m(marche.tva));
     tot("Total TTC (marché)", m(marche.ttc));
 
     y += 2;
@@ -154,7 +169,7 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     doc.setFontSize(10);
     y += 1;
     tot("Solde HT", m(facture.montant_ht));
-    tot(`${tvaLabel} (régularisée)`, m(facture.montant_tva));
+    rendTva(true); // TVA du solde, ventilée et régularisée par taux
     doc.setFontSize(11);
     tot("Solde à payer (TTC)", m(facture.montant_ttc), true);
   } else {
@@ -166,7 +181,7 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     } else {
       tot("Total HT", m(facture.montant_ht));
     }
-    tot(tvaLabel, m(facture.montant_tva));
+    rendTva();
     doc.setFontSize(11);
     tot("Total TTC", m(facture.montant_ttc), true);
   }
@@ -176,6 +191,14 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   doc.setFontSize(8);
   if (facture.type === "solde") {
     doc.text(MENTION_SOLDE, mx, y);
+    y += 4;
+  }
+  if (multiTaux) {
+    doc.text(
+      "Document soumis à plusieurs taux de TVA — ventilation ci-dessus (Art. 242 nonies A, I CGI).",
+      mx,
+      y,
+    );
     y += 4;
   }
   if (facture.remise && facture.remise.montant > 0) {

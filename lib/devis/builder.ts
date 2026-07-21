@@ -3,7 +3,12 @@ import type { CatalogueArticle } from "@/lib/catalogue/types";
 import { CATEGORIE_ORDER } from "@/lib/catalogue/meta";
 import { entiteConfig } from "@/lib/entite/config";
 import { uid } from "@/lib/uid";
-import { puVenteHt, round2, MARGE_DEFAUT } from "@/lib/devis/pricing";
+import {
+  puVenteHt,
+  round2,
+  tauxTvaDefaut,
+  MARGE_DEFAUT,
+} from "@/lib/devis/pricing";
 import type {
   DevisConfig,
   DevisDraft,
@@ -154,6 +159,7 @@ export function buildDraft(
     remise_valeur: 0,
     remise_motif: "",
     mode_tva: entiteConfig(entite).tvaDefaut,
+    taux_tva_overrides: {},
     mode_paiement: "50_50", // 2 versements par défaut (cas majoritaire)
     alma_propose: false,
     alma_plan: 4,
@@ -166,6 +172,7 @@ function ligneFromArticle(
   quantite: number,
   marge: number,
   cout: number,
+  taux_tva: number,
 ): DevisLigne {
   const pu = puVenteHt(cout, marge);
   // QR réservé aux bornes (réassurance client) : jamais sur pose/consommables.
@@ -184,6 +191,7 @@ function ligneFromArticle(
     taux_marge: marge,
     pu_ht: pu,
     total_ht: round2(pu * quantite),
+    taux_tva,
     url_produit,
   };
 }
@@ -201,10 +209,18 @@ export function deriveLignes(
 ): DevisLigne[] {
   const byId = new Map(articles.map((a) => [a.id, a]));
   const lignes: DevisLigne[] = [];
+  // Autoliquidation : tout le devis à 0 %. Sinon, taux par article (surcharge)
+  // ou défaut de catégorie ; MA reste figé à 20 % via tauxTvaDefaut.
+  const autoliq = draft.mode_tva === "fr_autoliquidation";
+  const tauxLigne = (a: CatalogueArticle) =>
+    autoliq
+      ? 0
+      : (draft.taux_tva_overrides[a.id] ??
+        tauxTvaDefaut(a.categorie, draft.entite));
   const push = (id: string | null, qty = 1) => {
     if (!id) return;
     const a = byId.get(id);
-    if (a) lignes.push(ligneFromArticle(a, qty, marge, coutOf(a)));
+    if (a) lignes.push(ligneFromArticle(a, qty, marge, coutOf(a), tauxLigne(a)));
   };
 
   push(draft.config.borne_id);

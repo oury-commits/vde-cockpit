@@ -4,6 +4,7 @@ import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { QR_LABEL, qrDataUrl } from "@/lib/devis/qr";
 import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
+import { pctTva, ventilationDe } from "@/lib/devis/tva";
 import { almaPhrase } from "@/lib/leads/reglements";
 import { buildLignes } from "@/lib/leads/pricing";
 
@@ -146,9 +147,15 @@ async function buildDevisDoc(
   // Lignes
   y += 6;
   doc.setDrawColor(231, 226, 215);
+  const ventilation = ventilationDe(devis);
+  const multiTaux = ventilation.length > 1;
+  const autoliq = devis.mode_tva === "fr_autoliquidation";
+
   doc.setTextColor(...MUTED);
   doc.setFontSize(8);
   doc.text("DÉSIGNATION", mx, y);
+  // Colonne TVA par ligne uniquement quand le devis porte plusieurs taux.
+  if (multiTaux) doc.text("TVA", pageW - 46, y, { align: "right" });
   doc.text("MONTANT HT", pageW - mx, y, { align: "right" });
   y += 2;
   doc.line(mx, y, pageW - mx, y);
@@ -157,6 +164,15 @@ async function buildDevisDoc(
   doc.setFontSize(10);
   for (const ligne of devis.lignes) {
     doc.text(ligne.label, mx, y);
+    if (multiTaux) {
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(9);
+      doc.text(pctTva(ligne.taux_tva ?? devis.taux_tva), pageW - 46, y, {
+        align: "right",
+      });
+      doc.setFontSize(10);
+      doc.setTextColor(...INK);
+    }
     doc.text(eur(ligne.montant_ht), pageW - mx, y, { align: "right" });
     y += 7;
     // QR de la fiche produit (bornes uniquement — décidé à la dérivation).
@@ -194,11 +210,19 @@ async function buildDevisDoc(
   } else {
     tot("Total HT", eur(devis.montant_ht));
   }
-  const tvaLabel =
-    devis.mode_tva === "fr_autoliquidation"
-      ? "TVA — autoliquidation"
-      : `TVA ${new Intl.NumberFormat("fr-FR").format(devis.taux_tva * 100)} %`;
-  tot(tvaLabel, eur(devis.montant_tva));
+  // Ventilation TVA par taux (Art. 242 nonies A) : une ligne par taux distinct.
+  if (autoliq) {
+    tot("TVA — autoliquidation", eur(0));
+  } else {
+    for (const v of ventilation) {
+      tot(
+        multiTaux
+          ? `TVA ${pctTva(v.taux)} · base ${eur(v.base_ht)}`
+          : `TVA ${pctTva(v.taux)}`,
+        eur(v.montant_tva),
+      );
+    }
+  }
   doc.setFontSize(11);
   tot("Total TTC", eur(devis.montant_ttc), true);
 
@@ -242,6 +266,14 @@ async function buildDevisDoc(
   doc.setFontSize(8);
   if (devis.remise && devis.remise.montant > 0) {
     doc.text(MENTION_REMISE, mx, y);
+    y += 4;
+  }
+  if (multiTaux) {
+    doc.text(
+      "Document soumis à plusieurs taux de TVA — ventilation ci-dessus (Art. 242 nonies A, I CGI).",
+      mx,
+      y,
+    );
     y += 4;
   }
   if (opt.mention) {

@@ -20,6 +20,7 @@ export function buildDevisSnapshot(
         ? `${l.designation} (${l.quantite} ${UNITE_LABEL[l.unite]})`
         : l.designation,
     montant_ht: l.total_ht,
+    taux_tva: l.taux_tva, // taux figé par ligne
     // Figé dans le snapshot : le QR du devis émis ne bouge plus.
     url_produit: l.url_produit ?? null,
     categorie: l.categorie ?? null,
@@ -47,6 +48,7 @@ export function buildDevisSnapshot(
     montant_ht: totaux.montant_ht,
     mode_tva: draft.mode_tva,
     taux_tva: totaux.taux_tva,
+    ventilation_tva: totaux.ventilation,
     montant_tva: totaux.montant_tva,
     montant_ttc: totaux.montant_ttc,
     // Alma : FR uniquement. En MA le drapeau est ignoré (jamais figé).

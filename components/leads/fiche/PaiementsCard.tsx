@@ -51,7 +51,9 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
   const reste = resteAPayer(lead);
   const soldeAlma = estSoldeAlma(lead);
   const solde = estSolde(lead);
-  const pct = du > 0 ? Math.min(100, Math.round((paye / du) * 100)) : 0;
+  // Jauge cohérente avec le badge « Soldé » : un dossier soldé (Alma compris,
+  // même encaissé pour un montant < TTC hors commission) affiche 100 %.
+  const pct = solde ? 100 : du > 0 ? Math.min(100, Math.round((paye / du) * 100)) : 0;
 
   // Verrou RDV : « pas d'acompte, pas de RDV » (le passage à « planifié »).
   const rdvConfirme = lead.statut === "planifie" || lead.statut === "installe";

@@ -30,7 +30,9 @@ export function ComingSoon() {
       </div>
       <PageTitle>{title}</PageTitle>
       <p className="text-sm text-muted">
-        Ce module arrive prochainement (M2 — Devis / M3 — Encaissements…).
+        <span className="font-semibold text-gold-ink">À venir.</span> Le module
+        « {title} » n&apos;est pas encore disponible — il arrivera dans une
+        prochaine étape.
       </p>
       <Link
         href="/dashboard"

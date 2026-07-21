@@ -73,7 +73,10 @@ const STEPPER = ["Nouveau", "Contacté", "Devis envoyé", "Signé", "Acompte", "
 function stepIndex(lead: Lead): number {
   const s = lead.statut;
   if (s === "installe" || s === "sav") return 5;
-  if (lead.echeancier?.[0]?.statut === "encaisse" || s === "planifie") return 4;
+  // « Acompte » = un encaissement existe au registre (même règle que le jalon
+  // dérivé « Acompte reçu ») ou RDV déjà planifié — jamais l'échéancier seul,
+  // qui pourrait contredire le registre.
+  if (aEncaissement(lead) || s === "planifie") return 4;
   if (s === "signe") return 3;
   if (s === "devis_envoye") return 2;
   if (s === "qualifie") return 1;
