@@ -242,6 +242,23 @@ async function buildDevisDoc(
     y += 6;
   }
 
+  // Différenciateur commercial VDE (FR) — discret : la borne est achetée, pas
+  // louée (vs offres à abonnement type Zeplug). MA n'est pas concerné.
+  if (devis.entite === "FR") {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text(
+      "Votre borne vous appartient — sans abonnement.",
+      pageW - mx,
+      y,
+      { align: "right" },
+    );
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...INK);
+    y += 6;
+  }
+
   // Échéancier (fourni par l'appelant, sinon défaut 2 versements)
   const echeances = echeancier ?? buildEcheancier(devis.montant_ttc);
   const plan = echeances.map((e) => e.pct).join(" / ");
