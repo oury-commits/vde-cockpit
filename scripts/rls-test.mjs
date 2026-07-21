@@ -101,6 +101,11 @@ await db.exec(`
     ('FR-2','FR','Client FR 2','0600000002', 3100),
     ('MA-1','MA','Client MA 1','0600000011', 27000);
 
+  -- Facture de solde portee en JSONB sur le lead (Bloc C) : elle doit heriter
+  -- du cloisonnement financier de leads (entite ∩ montants).
+  update leads set facture = '{"ref":"FAC-2026-010","type":"solde","montant_ttc":950.40}'::jsonb
+    where id = 'FR-1';
+
   insert into activites (lead_id, type, contenu, auteur) values
     ('FR-1','note','note FR 1','Admin'),
     ('FR-2','note','note FR 2','Admin'),
@@ -120,6 +125,11 @@ await db.exec(`
     ('documents','FR/VDE-2026-001.pdf'),
     ('documents','FR/VDE-2026-002.pdf'),
     ('documents','MA/VDE-2026-001.pdf');
+
+  insert into reglements (id, lead_id, entite, montant, mode) values
+    ('R-1','FR-1','FR', 1250, 'virement'),
+    ('R-2','FR-2','FR', 1550, 'cheque'),
+    ('R-3','MA-1','MA', 13500, 'virement');
 `);
 
 // --- Exécution dans la peau d'un utilisateur --------------------------------
@@ -334,7 +344,37 @@ console.log("\n=== 10. STORAGE — les fichiers cloisonnés comme les lignes ===
   verifie("l'admin supprime un document", d2.ok === true && d2.count === 1);
 }
 
-console.log("\n=== 11. AUCUNE PORTE OUVERTE ===");
+console.log("\n=== 11. REGLEMENTS — registre financier cloisonne ===");
+{
+  const q = "select * from reglements";
+  verifie("admin voit les 3 encaissements",          (await nb(U.admin, q)) === 3);
+  verifie("chargé d'affaires FR voit ses 2",         (await nb(U.caFr, q)) === 2);
+  verifie("chargé d'affaires MA voit son 1",         (await nb(U.caMa, q)) === 1);
+  verifie("assistante FR voit les 2 FR",             (await nb(U.assistFr, q)) === 2);
+  verifie("conducteur de travaux : 0 (aveugle aux montants)", (await nb(U.condFr, q)) === 0);
+  verifie("technicien : 0",                          (await nb(U.techFr, q)) === 0);
+  const vuAdmin = await nb(U.admin, "select * from reglements where entite = 'MA'");
+  const vuFr = await nb(U.caFr, "select * from reglements where entite = 'MA'");
+  verifie("encaissement MA : REFUS pour le FR, pas un registre vide", vuAdmin === 1 && vuFr === 0);
+  const w = await commeUtilisateur(U.caFr, "insert into reglements (id, lead_id, entite, montant, mode) values ('R-9','FR-1','MA', 100, 'virement')");
+  verifie("chargé d'affaires FR ne peut PAS écrire un encaissement MA", w.ok === false, w.erreur?.slice(0, 50));
+  const d1 = await commeUtilisateur(U.caFr, "delete from reglements where id = 'R-1'");
+  verifie("un encaissement ne se supprime pas hors admin", d1.ok === true && d1.count === 0);
+  const d2 = await commeUtilisateur(U.admin, "delete from reglements where id = 'R-1'");
+  verifie("l'admin peut annuler un encaissement", d2.ok === true && d2.count === 1);
+}
+
+console.log("\n=== 12. FACTURE DE SOLDE (JSONB sur le lead) — cloisonnement financier ===");
+{
+  const q = "select facture from leads where id = 'FR-1' and facture is not null";
+  verifie("admin lit la facture de solde de FR-1",         (await nb(U.admin, q)) === 1);
+  verifie("chargé d'affaires FR la lit",                   (await nb(U.caFr, q)) === 1);
+  verifie("chargé d'affaires MA ne la voit pas (autre entité)", (await nb(U.caMa, q)) === 0);
+  verifie("conducteur de travaux ne la voit pas (aveugle aux montants)", (await nb(U.condFr, q)) === 0);
+  verifie("technicien ne la voit pas",                     (await nb(U.techFr, q)) === 0);
+}
+
+console.log("\n=== 13. AUCUNE PORTE OUVERTE ===");
 {
   const ouvertes = await db.query(`
     select tablename, policyname from pg_policies

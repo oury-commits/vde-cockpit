@@ -1,4 +1,4 @@
-import type { Entite, ModeTva, Reseau } from "@/lib/types";
+import type { AlmaPlan, Entite, ModeTva, Reseau } from "@/lib/types";
 import type { CategorieArticle, Unite } from "@/lib/catalogue/types";
 
 // Modèle du devis en construction (wizard). Les lignes sont DÉRIVÉES des
@@ -55,11 +55,14 @@ export interface ControleLigne {
 // strictement HT + TVA. Voir `eligible_advenir` sur le lead : c'est un signal
 // de qualification, sans effet sur le devis.
 
-export type ModePaiement = "40_40_20" | "50_50";
+// Échéancier d'ACOMPTES VDE (versements directs du client). À ne pas confondre
+// avec Alma (mode de paiement par un tiers). Défaut = 2 versements, le cas
+// majoritaire ; 3 versements reste disponible.
+export type ModePaiement = "50_50" | "40_40_20";
 
 export const MODE_PAIEMENT_LABEL: Record<ModePaiement, string> = {
-  "40_40_20": "40 / 40 / 20",
-  "50_50": "50 / 50",
+  "50_50": "2 versements · 50 / 50",
+  "40_40_20": "3 versements · 40 / 40 / 20",
 };
 
 export interface DevisClient {
@@ -98,9 +101,15 @@ export interface DevisDraft {
   config: DevisConfig;
   supplements: DevisSupplement[];
   taux_marge: number; // marge cible globale (0.35 par défaut)
-  remise: number; // réduction commerciale HT
+  /** Réduction commerciale : saisie en % du HT ou en montant fixe, + motif. */
+  remise_type: "percent" | "montant";
+  remise_valeur: number;
+  remise_motif: string;
   mode_tva: ModeTva;
   mode_paiement: ModePaiement;
+  /** Proposer Alma 2x/3x/4x au client (FR uniquement — ignoré/masqué en MA). */
+  alma_propose: boolean;
+  alma_plan: AlmaPlan;
   notes: string;
 }
 

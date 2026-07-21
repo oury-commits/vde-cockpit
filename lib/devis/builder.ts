@@ -150,9 +150,13 @@ export function buildDraft(
     // uniquement les ajouts manuels de l'utilisateur.
     supplements: [],
     taux_marge: MARGE_DEFAUT,
-    remise: 0,
+    remise_type: "percent",
+    remise_valeur: 0,
+    remise_motif: "",
     mode_tva: entiteConfig(entite).tvaDefaut,
-    mode_paiement: "40_40_20",
+    mode_paiement: "50_50", // 2 versements par défaut (cas majoritaire)
+    alma_propose: false,
+    alma_plan: 4,
     notes: "",
   };
 }

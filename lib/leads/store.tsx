@@ -21,6 +21,8 @@ import type {
   Lead,
   ModeTva,
   MotifPerte,
+  Reglement,
+  ReglementMode,
   Statut,
   StatutEcheance,
   Visibilite,
@@ -37,12 +39,19 @@ import {
 import { scoreTemperature } from "@/lib/leads/scoring";
 import { buildDevis, buildEcheancier } from "@/lib/leads/devis";
 import { buildFacture } from "@/lib/leads/facture";
+import {
+  aEncaissement,
+  buildFactureAcompte,
+  buildFactureSolde,
+  MODE_REGLEMENT_LABEL,
+  peutGenererSolde,
+} from "@/lib/leads/reglements";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
 import { MEMBRES, STATUT_META, isLeadProtege } from "@/lib/leads/meta";
 import { useIdentity } from "@/lib/roles/IdentityProvider";
 import { peutVoirEntite } from "@/lib/roles/permissions";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMontant } from "@/lib/format";
 import { uid } from "@/lib/uid";
 import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
 
@@ -81,7 +90,11 @@ interface StoreValue {
   deleteLeads: (ids: string[]) => void;
   /** Archive un lead (conserve la pièce comptable au lieu de la détruire). */
   archiveLead: (id: string) => void;
-  changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => void;
+  /**
+   * Change le statut. Renvoie false si la transition est refusée (verrou RDV :
+   * passage à « planifié » sans encaissement).
+   */
+  changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => boolean;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   /** Note typée (appel / email / visite / note) avec portée interne ou client. */
   addNote: (
@@ -111,6 +124,24 @@ interface StoreValue {
     index: number,
     statut: StatutEcheance,
   ) => void;
+  /**
+   * Enregistre un encaissement (source de vérité du payé/reste). Un acompte VDE
+   * émet une facture d'acompte numérotée ; un paiement Alma solde le dossier.
+   */
+  enregistrerReglement: (
+    leadId: string,
+    input: {
+      montant: number;
+      mode: ReglementMode;
+      echeanceIndex?: number | null;
+    },
+  ) => Promise<Reglement | null>;
+  /**
+   * Génère la facture de solde (déduit les acomptes, régularise la TVA). Gatée :
+   * renvoie null tant que l'installation n'est pas clôturée ou qu'il n'y a pas
+   * de solde à facturer.
+   */
+  genererFactureSolde: (leadId: string) => Promise<Facture | null>;
   resetDemo: () => void;
 }
 
@@ -430,6 +461,13 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
 
   const changeStatut = useCallback<StoreValue["changeStatut"]>(
     (id, statut, motif) => {
+      const lead = leads.find((l) => l.id === id);
+      // « Pas d'acompte, pas de RDV » : on ne confirme pas le RDV d'installation
+      // (passage à « planifié ») tant qu'aucun encaissement n'existe. Bloqué au
+      // niveau du store, pas seulement masqué dans l'UI.
+      if (statut === "planifie" && lead && !aEncaissement(lead)) {
+        return false;
+      }
       const now = new Date().toISOString();
       setLeads((prev) =>
         prev.map((l) =>
@@ -451,8 +489,9 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
           statut === "perdu" && motif ? ` (${motif})` : ""
         }`,
       );
+      return true;
     },
-    [pushActivite],
+    [leads, pushActivite],
   );
 
   const generateDevis = useCallback<StoreValue["generateDevis"]>(
@@ -591,17 +630,23 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       setLeads((prev) =>
         prev.map((l) => {
           if (l.id !== leadId || !l.devis) return l;
+          // On NE réécrit pas l'échéancier choisi dans le wizard : on ne le crée
+          // que s'il manque (chemin « générer le devis » en 1 clic).
+          const echeancier =
+            l.echeancier && l.echeancier.length > 0
+              ? l.echeancier
+              : buildEcheancier(l.devis.montant_ttc);
           return {
             ...l,
             devis: { ...l.devis, statut: "signe" },
-            echeancier: buildEcheancier(l.devis.montant_ttc),
+            echeancier,
             statut: "signe",
             statut_change_at: now,
             updated_at: now,
           };
         }),
       );
-      pushActivite(leadId, "signature", "Devis signé — échéancier 40/40/20 créé");
+      pushActivite(leadId, "signature", "Devis signé — échéancier d'acomptes prêt");
     },
     [pushActivite],
   );
@@ -655,6 +700,113 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [pushActivite],
   );
 
+  const enregistrerReglement = useCallback<StoreValue["enregistrerReglement"]>(
+    async (leadId, input) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead || !lead.devis) return null;
+      const montant = Math.round((input.montant + Number.EPSILON) * 100) / 100;
+      if (montant <= 0) return null;
+      const now = new Date().toISOString();
+
+      // Un acompte VDE encaissé exige une facture d'acompte (Art. 289 CGI), donc
+      // un numéro de la série factures. Un paiement Alma n'est PAS un acompte :
+      // Alma paie VDE en une fois → pas de facture d'acompte à ce stade.
+      let factureAcompte: Facture | null = null;
+      let factureRef: string | null = null;
+      if (input.mode !== "alma") {
+        factureRef = await reserveRef(lead.entite, "facture");
+        factureAcompte = buildFactureAcompte(lead.devis, montant, factureRef, now);
+      }
+
+      const reglement: Reglement = {
+        id: uid(),
+        lead_id: leadId,
+        entite: lead.entite,
+        montant,
+        mode: input.mode,
+        facture_acompte_ref: factureRef,
+        encaisse_le: now,
+        auteur,
+      };
+
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id !== leadId) return l;
+          const reglements = [...(l.reglements ?? []), reglement];
+          const factures_acompte = factureAcompte
+            ? [...(l.factures_acompte ?? []), factureAcompte]
+            : (l.factures_acompte ?? null);
+          // Alma solde tout : chaque échéance passe encaissée. Sinon on marque
+          // l'échéance visée (ou la première encore attendue).
+          let echeancier = l.echeancier ?? null;
+          if (echeancier) {
+            if (input.mode === "alma") {
+              echeancier = echeancier.map((e) => ({
+                ...e,
+                statut: "encaisse" as const,
+                date_encaissement: e.date_encaissement ?? now,
+              }));
+            } else {
+              const cible =
+                input.echeanceIndex ??
+                echeancier.findIndex((e) => e.statut !== "encaisse");
+              echeancier = echeancier.map((e, i) =>
+                i === cible
+                  ? { ...e, statut: "encaisse" as const, date_encaissement: now }
+                  : e,
+              );
+            }
+          }
+          return {
+            ...l,
+            reglements,
+            factures_acompte,
+            echeancier,
+            updated_at: now,
+          };
+        }),
+      );
+
+      const modeLabel = MODE_REGLEMENT_LABEL[input.mode];
+      pushActivite(
+        leadId,
+        "paiement",
+        input.mode === "alma"
+          ? `Paiement Alma encaissé (${formatMontant(montant, lead.devis.devise, { cents: true })}) — dossier soldé`
+          : `Règlement ${formatMontant(montant, lead.devis.devise, { cents: true })} (${modeLabel})${factureRef ? ` — facture d'acompte ${factureRef}` : ""}`,
+      );
+      return reglement;
+    },
+    [leads, auteur, pushActivite],
+  );
+
+  const genererFactureSolde = useCallback<StoreValue["genererFactureSolde"]>(
+    async (leadId) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead) return null;
+      // Gate installation + solde réellement dû (Bloc C).
+      if (!peutGenererSolde(lead)) return null;
+      const ref = await reserveRef(lead.entite, "facture");
+      const facture = buildFactureSolde(lead, ref, new Date().toISOString());
+      if (!facture) return null;
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, facture, updated_at: new Date().toISOString() }
+            : l,
+        ),
+      );
+      const n = facture.acomptes_deduits?.length ?? 0;
+      pushActivite(
+        leadId,
+        "devis",
+        `Facture de solde ${ref} générée — ${n} acompte${n > 1 ? "s" : ""} déduit${n > 1 ? "s" : ""} (${formatMontant(facture.montant_ttc, facture.devise, { cents: true })} à payer)`,
+      );
+      return facture;
+    },
+    [leads, pushActivite],
+  );
+
   const resetDemo = useCallback(() => {
     const state = seedState();
     setLeads(state.leads);
@@ -705,6 +857,8 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       signDevis,
       generateFacture,
       setEcheanceStatut,
+      enregistrerReglement,
+      genererFactureSolde,
       resetDemo,
     }),
     [
@@ -730,6 +884,8 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       signDevis,
       generateFacture,
       setEcheanceStatut,
+      enregistrerReglement,
+      genererFactureSolde,
       resetDemo,
     ],
   );

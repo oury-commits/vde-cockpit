@@ -2,7 +2,8 @@ import { jsPDF } from "jspdf";
 import type { Devis, Entite, Facture, Lead } from "@/lib/types";
 import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
-import { buildEcheancier } from "@/lib/leads/devis";
+import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
+import { MENTION_SOLDE, marcheDeSolde } from "@/lib/leads/reglements";
 
 /**
  * Prochaine ref de facture, NUMÉROTATION CONTINUE SANS TROU par entité
@@ -27,6 +28,8 @@ export function buildFacture(devis: Devis, ref: string, dateISO: string): Factur
     date_creation: dateISO,
     devis_ref: devis.ref,
     lignes: devis.lignes,
+    montant_ht_brut: devis.montant_ht_brut,
+    remise: devis.remise ?? null,
     montant_ht: devis.montant_ht,
     mode_tva: devis.mode_tva,
     taux_tva: devis.taux_tva,
@@ -38,8 +41,6 @@ export function buildFacture(devis: Devis, ref: string, dateISO: string): Factur
 const BRAND: [number, number, number] = [15, 61, 46];
 const INK: [number, number, number] = [26, 26, 26];
 const MUTED: [number, number, number] = [92, 107, 99];
-
-const ECHEANCE_LABEL = ["Acompte à la commande", "Démarrage des travaux", "Solde à la réception"];
 
 function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   const cfg = entiteConfig(facture.entite);
@@ -58,7 +59,15 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   doc.text(cfg.nom, mx, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text("FACTURE", mx, 21);
+  doc.text(
+    facture.type === "solde"
+      ? "FACTURE DE SOLDE"
+      : facture.type === "acompte"
+        ? "FACTURE D'ACOMPTE"
+        : "FACTURE",
+    mx,
+    21,
+  );
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text(facture.ref, pageW - mx, 15, { align: "right" });
@@ -109,36 +118,70 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     doc.text(val, pageW - mx, y, { align: "right" });
     y += 6;
   };
-  tot("Total HT", m(facture.montant_ht));
-  tot(
+  const tvaLabel =
     facture.mode_tva === "fr_autoliquidation"
       ? "TVA — autoliquidation"
-      : `TVA ${new Intl.NumberFormat("fr-FR").format(facture.taux_tva * 100)} %`,
-    m(facture.montant_tva),
-  );
-  doc.setFontSize(11);
-  tot("Total TTC", m(facture.montant_ttc), true);
+      : `TVA ${new Intl.NumberFormat("fr-FR").format(facture.taux_tva * 100)} %`;
 
-  // Reprise de l'échéancier 40/40/20
-  y += 6;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...BRAND);
-  doc.text("Conditions de paiement — 40 / 40 / 20", mx, y);
-  y += 7;
-  doc.setTextColor(...INK);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const ech = buildEcheancier(facture.montant_ttc);
-  ech.forEach((e, i) => {
-    doc.text(`${e.pct} % — ${ECHEANCE_LABEL[i]}`, mx, y);
-    doc.text(m(e.montant), pageW - mx, y, { align: "right" });
-    y += 7;
-  });
+  if (facture.type === "solde") {
+    // Facture de SOLDE : rappel du marché (remise reportée, jamais recomptée) →
+    // acomptes déjà facturés, déduits → solde à payer, TVA régularisée.
+    const marche = marcheDeSolde(facture);
+    if (facture.remise && facture.remise.montant > 0) {
+      tot("Total HT brut (marché)", m(facture.montant_ht_brut ?? marche.ht));
+      tot(remiseLabel(facture.remise), `− ${m(facture.remise.montant)}`);
+      tot("Total HT net (marché)", m(marche.ht));
+    } else {
+      tot("Total HT (marché)", m(marche.ht));
+    }
+    tot(tvaLabel, m(marche.tva));
+    tot("Total TTC (marché)", m(marche.ttc));
+
+    y += 2;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text("ACOMPTES DÉJÀ FACTURÉS — DÉDUITS", pageW - 80, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...INK);
+    for (const a of facture.acomptes_deduits ?? []) {
+      doc.text(`${a.ref} · ${formatDate(a.date)}`, pageW - 80, y);
+      doc.text(`− ${m(a.montant_ttc)}`, pageW - mx, y, { align: "right" });
+      y += 5;
+    }
+    doc.setFontSize(10);
+    y += 1;
+    tot("Solde HT", m(facture.montant_ht));
+    tot(`${tvaLabel} (régularisée)`, m(facture.montant_tva));
+    doc.setFontSize(11);
+    tot("Solde à payer (TTC)", m(facture.montant_ttc), true);
+  } else {
+    // Facture normale / d'acompte : HT brut → − remise → HT net → TVA → TTC.
+    if (facture.remise && facture.remise.montant > 0) {
+      tot("Total HT brut", m(facture.montant_ht_brut ?? facture.montant_ht));
+      tot(remiseLabel(facture.remise), `− ${m(facture.remise.montant)}`);
+      tot("Total HT net", m(facture.montant_ht));
+    } else {
+      tot("Total HT", m(facture.montant_ht));
+    }
+    tot(tvaLabel, m(facture.montant_tva));
+    doc.setFontSize(11);
+    tot("Total TTC", m(facture.montant_ttc), true);
+  }
 
   y += 8;
   doc.setTextColor(...MUTED);
   doc.setFontSize(8);
+  if (facture.type === "solde") {
+    doc.text(MENTION_SOLDE, mx, y);
+    y += 4;
+  }
+  if (facture.remise && facture.remise.montant > 0) {
+    doc.text(MENTION_REMISE, mx, y);
+    y += 4;
+  }
   if (opt.mention) {
     doc.text(opt.mention, mx, y);
     y += 4;
