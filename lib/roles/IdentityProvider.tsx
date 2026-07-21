@@ -12,17 +12,19 @@ import {
 import type { EntiteAcces, Identite, Role } from "@/lib/roles/types";
 import { ROLE_LABEL, identiteDeProfil } from "@/lib/roles/types";
 import { useProfiles } from "@/lib/roles/ProfilesProvider";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { isAuthDisabled } from "@/lib/auth/config";
 
-// Identité applicative courante.
-// - Mode construction (NEXT_PUBLIC_AUTH_DISABLED=true) : simulée par le
-//   sélecteur dev, persistée en localStorage. Deux façons de simuler :
-//     • « incarner » un membre de l'équipe → l'identité SUIT son profil, donc
-//       une modification faite dans /equipe se voit immédiatement ;
-//     • identité libre (rôle × entité au choix) → sert à balayer les
-//       combinaisons qui n'existent pas encore dans l'équipe.
-// - TODO P3 : une fois l'auth activée, lire la ligne `profiles` de auth.uid()
-//   et supprimer entièrement le sélecteur.
+// Identité applicative courante. Trois modes :
+// - AUTH RÉELLE (Supabase configuré + NEXT_PUBLIC_AUTH_DISABLED=false) :
+//   l'identité DÉCOULE du profil de l'utilisateur connecté (profiles où
+//   id = auth.uid()). Aucun repli admin : sans profil → « non assigné » = deny.
+//   Le sélecteur de construction est retiré.
+// - Construction (NEXT_PUBLIC_AUTH_DISABLED=true) : simulée par le sélecteur
+//   dev (incarner un membre, ou identité libre rôle × entité), persistée en
+//   localStorage. Sert à tester chaque combinaison sans login.
+// - Démo local (pas de Supabase, auth non désactivée) : admin/ALL par défaut,
+//   sans backend — vitrine sans données réelles.
 
 const KEY = "vde.dev.identite";
 
@@ -71,7 +73,12 @@ const IdentityContext = createContext<IdentityValue | null>(null);
 
 export function IdentityProvider({ children }: { children: ReactNode }) {
   const { profilById, loaded: profilsCharges } = useProfiles();
+  const { user, enabled, loading: authLoading } = useAuth();
   const [sim, setSim] = useState<Simulation>(DEFAUT);
+
+  // Auth réelle = Supabase configuré ET mode construction désactivé. C'est le
+  // seul cas où l'identité vient de l'utilisateur connecté (jamais du sélecteur).
+  const authReelle = enabled && !isAuthDisabled;
 
   useEffect(() => {
     if (!isAuthDisabled) return;
@@ -133,31 +140,46 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     [sim, persist],
   );
 
-  // Le profil est la source de vérité quand il est incarné : ses dérogations
-  // et sa désactivation s'appliquent sans copie locale à resynchroniser.
-  const profil = profilById(sim.profilId);
-  const identite = useMemo<Identite>(
-    () =>
-      profil
-        ? identiteDeProfil(profil)
-        : {
-            id: null,
-            nom: nomSimule(sim.role, sim.entite),
-            role: sim.role,
-            entite: sim.entite,
-            actif: sim.actif,
-            overrides: {},
-          },
-    [profil, sim.role, sim.entite, sim.actif],
-  );
+  // Source du profil :
+  // - auth réelle → l'utilisateur connecté (id = auth.uid()) ;
+  // - construction → le profil incarné par le sélecteur dev.
+  const profil = profilById(authReelle ? (user?.id ?? null) : sim.profilId);
 
-  // Un profil incarné pas encore chargé = identité non résolue.
-  const pret = !sim.profilId || profilsCharges;
+  const identite = useMemo<Identite>(() => {
+    if (profil) return identiteDeProfil(profil);
+    if (authReelle) {
+      // Connecté mais SANS profil : aucun droit. On n'invente pas un admin.
+      return {
+        id: null,
+        nom: user?.email ?? "Non assigné",
+        role: null,
+        entite: null,
+        actif: false,
+        overrides: {},
+      };
+    }
+    // Construction / démo : identité libre du sélecteur (admin/ALL par défaut).
+    return {
+      id: null,
+      nom: nomSimule(sim.role, sim.entite),
+      role: sim.role,
+      entite: sim.entite,
+      actif: sim.actif,
+      overrides: {},
+    };
+  }, [profil, authReelle, user?.email, sim.role, sim.entite, sim.actif]);
+
+  // Identité non encore résolue → ne pas conclure « aucun droit » (sinon on
+  // refuse l'accès à quelqu'un qui a le droit d'entrer, le temps du chargement).
+  const pret = authReelle
+    ? !authLoading && profilsCharges
+    : !sim.profilId || profilsCharges;
 
   const value = useMemo<IdentityValue>(
     () => ({
       identite,
       pret,
+      // Sélecteur dev disponible en construction UNIQUEMENT (jamais en auth réelle).
       simulation: isAuthDisabled,
       profilId: sim.profilId,
       incarner,
