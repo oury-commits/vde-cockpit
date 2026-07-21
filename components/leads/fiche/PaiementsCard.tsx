@@ -1,16 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, CircleCheck, Lock, Wallet } from "lucide-react";
+import {
+  CalendarClock,
+  CircleCheck,
+  Clock,
+  Lock,
+  Receipt,
+  Wallet,
+} from "lucide-react";
 import type { Lead, ReglementMode } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
+import { generateFacturePdf } from "@/lib/leads/facture";
 import { formatDate, formatMontant } from "@/lib/format";
 import {
   MODE_REGLEMENT_LABEL,
   aEncaissement,
   estSolde,
   estSoldeAlma,
+  peutGenererSolde,
   resteAPayer,
+  soldeEnAttente,
   totalRegle,
 } from "@/lib/leads/reglements";
 import { Card } from "@/components/ui/Card";
@@ -60,6 +70,20 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
       await store.enregistrerReglement(lead.id, { montant: v, mode });
       setMontant("");
       setMode("virement");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Facture de solde (Bloc C) : gate installation.
+  const aAcomptes = (lead.factures_acompte?.length ?? 0) > 0;
+  const soldeDejaEmis = lead.facture?.type === "solde";
+  const genererSolde = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const f = await store.genererFactureSolde(lead.id);
+      if (f) generateFacturePdf(lead, f);
     } finally {
       setBusy(false);
     }
@@ -247,6 +271,67 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
               Une facture d&apos;acompte numérotée sera émise (Art. 289 CGI).
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {/* Facture de solde (Bloc C) — gate installation */}
+      {aAcomptes && !soldeDejaEmis && !soldeAlma ? (
+        peutGenererSolde(lead) ? (
+          <div className="mt-3 rounded-xl border border-brand/25 bg-brand/5 p-3">
+            <p className="mb-2 text-[13px] text-ink">
+              Installation clôturée — la facture de solde déduit les acomptes
+              déjà facturés et régularise la TVA.
+            </p>
+            <Button
+              size="sm"
+              icon={Receipt}
+              className="w-full"
+              onClick={genererSolde}
+              disabled={busy}
+            >
+              Générer la facture de solde ({m(reste)})
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-cream/40 px-3 py-2 text-[13px] text-muted">
+            <Receipt className="size-4 shrink-0" strokeWidth={1.75} />
+            Facture de solde à générer après installation.
+          </div>
+        )
+      ) : null}
+
+      {/* Marqueur « solde en attente » (relance future — pas d'auto-relance) */}
+      {soldeEnAttente(lead) && soldeDejaEmis ? (
+        <p className="mt-3 flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-[13px] text-gold-ink">
+          <Clock className="size-4 shrink-0" strokeWidth={2} />
+          Solde en attente de paiement — à relancer.
+        </p>
+      ) : null}
+
+      {/* Facture de solde émise */}
+      {lead.facture?.type === "solde" ? (
+        <div className="mt-3 rounded-xl border border-brand/30 bg-brand/5 p-3">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-sm font-semibold text-brand">
+              {lead.facture.ref}
+            </span>
+            <Badge tone="gold">solde</Badge>
+          </div>
+          <div className="mt-2 flex justify-between border-t border-brand/15 pt-2 text-sm">
+            <span className="text-muted">Solde à payer</span>
+            <span className="font-mono font-semibold text-ink">
+              {m(lead.facture.montant_ttc)}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={Receipt}
+            className="mt-2"
+            onClick={() => generateFacturePdf(lead, lead.facture!)}
+          >
+            Voir la facture de solde
+          </Button>
         </div>
       ) : null}
 

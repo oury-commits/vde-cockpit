@@ -1,4 +1,5 @@
 import type {
+  AcompteDeduit,
   AlmaPlan,
   Devis,
   Facture,
@@ -87,6 +88,118 @@ export function buildFactureAcompte(
     montant_tva: tva,
     montant_ttc: round2(montantTtc),
   };
+}
+
+// ── Facture de solde (Bloc C) ───────────────────────────────────────────────
+
+/**
+ * Mention de déduction obligatoire sur une facture de solde (Art. 289 CGI) :
+ * elle référence les acomptes déjà facturés et acte la régularisation de TVA.
+ */
+export const MENTION_SOLDE =
+  "Facture de solde. Les acomptes déjà facturés ci-dessus sont déduits ; la TVA est régularisée en conséquence (Art. 289 CGI).";
+
+/** Totaux cumulés des factures d'acompte déduites. */
+export function totalAcomptes(acomptes: AcompteDeduit[]): {
+  ht: number;
+  tva: number;
+  ttc: number;
+} {
+  return {
+    ht: round2(acomptes.reduce((s, a) => s + a.montant_ht, 0)),
+    tva: round2(acomptes.reduce((s, a) => s + a.montant_tva, 0)),
+    ttc: round2(acomptes.reduce((s, a) => s + a.montant_ttc, 0)),
+  };
+}
+
+/** Total du marché (reconstitué depuis le solde + les acomptes déduits). */
+export function marcheDeSolde(facture: Facture): {
+  ht: number;
+  tva: number;
+  ttc: number;
+} {
+  const a = totalAcomptes(facture.acomptes_deduits ?? []);
+  return {
+    ht: round2(facture.montant_ht + a.ht),
+    tva: round2(facture.montant_tva + a.tva),
+    ttc: round2(facture.montant_ttc + a.ttc),
+  };
+}
+
+/**
+ * Facture de SOLDE : le reste dû après déduction des acomptes déjà facturés.
+ *
+ * Le solde se calcule sur le TOTAL MARCHÉ APRÈS REMISE (le devis porte déjà la
+ * remise) : on ne recompte ni ne réapplique la remise. La TVA est RÉGULARISÉE —
+ * TVA du solde = TVA totale − TVA déjà facturée sur les acomptes.
+ */
+export function buildFactureSolde(
+  lead: Lead,
+  ref: string,
+  dateISO: string,
+): Facture | null {
+  const d = lead.devis;
+  if (!d) return null;
+  const acomptes: AcompteDeduit[] = (lead.factures_acompte ?? []).map((f) => ({
+    ref: f.ref,
+    date: f.date_creation,
+    montant_ht: f.montant_ht,
+    montant_tva: f.montant_tva,
+    montant_ttc: f.montant_ttc,
+  }));
+  const cumul = totalAcomptes(acomptes);
+  return {
+    ref,
+    entite: d.entite,
+    devise: d.devise,
+    date_creation: dateISO,
+    devis_ref: d.ref,
+    type: "solde",
+    // Lignes du marché (rappel de la prestation). La remise du devis est
+    // reportée telle quelle — jamais recalculée.
+    lignes: d.lignes,
+    montant_ht_brut: d.montant_ht_brut,
+    remise: d.remise ?? null,
+    // Montants de CETTE facture = le solde (marché − acomptes), TVA régularisée.
+    montant_ht: round2(d.montant_ht - cumul.ht),
+    mode_tva: d.mode_tva,
+    taux_tva: d.taux_tva,
+    montant_tva: round2(d.montant_tva - cumul.tva),
+    montant_ttc: round2(d.montant_ttc - cumul.ttc),
+    acomptes_deduits: acomptes,
+  };
+}
+
+/**
+ * La facture de solde n'est générable qu'une fois l'installation clôturée
+ * (jalon « Installé » = statut `installe`) et s'il reste effectivement un solde
+ * à facturer. Un dossier Alma est soldé d'office : pas de facture de solde.
+ */
+export function peutGenererSolde(lead: Lead): boolean {
+  return (
+    lead.devis?.statut === "signe" &&
+    lead.statut === "installe" &&
+    !estSoldeAlma(lead) &&
+    (lead.factures_acompte?.length ?? 0) > 0 &&
+    !(lead.facture?.type === "solde") &&
+    montantDu(lead) - totalAcomptes(
+      (lead.factures_acompte ?? []).map((f) => ({
+        ref: f.ref, date: f.date_creation,
+        montant_ht: f.montant_ht, montant_tva: f.montant_tva, montant_ttc: f.montant_ttc,
+      })),
+    ).ttc > 0.005
+  );
+}
+
+/**
+ * Marqueur « solde en attente » : installation clôturée mais reste dû non nul.
+ * Simple flag pour la relance future (tour de contrôle admin) — AUCUNE relance
+ * automatique n'est déclenchée ici.
+ */
+export function soldeEnAttente(lead: Lead): boolean {
+  return (
+    lead.statut === "installe" && !estSoldeAlma(lead) && resteAPayer(lead) > 0.005
+  );
 }
 
 // ── Alma (FR uniquement) ────────────────────────────────────────────────────

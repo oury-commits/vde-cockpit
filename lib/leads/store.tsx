@@ -42,7 +42,9 @@ import { buildFacture } from "@/lib/leads/facture";
 import {
   aEncaissement,
   buildFactureAcompte,
+  buildFactureSolde,
   MODE_REGLEMENT_LABEL,
+  peutGenererSolde,
 } from "@/lib/leads/reglements";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
@@ -134,6 +136,12 @@ interface StoreValue {
       echeanceIndex?: number | null;
     },
   ) => Promise<Reglement | null>;
+  /**
+   * Génère la facture de solde (déduit les acomptes, régularise la TVA). Gatée :
+   * renvoie null tant que l'installation n'est pas clôturée ou qu'il n'y a pas
+   * de solde à facturer.
+   */
+  genererFactureSolde: (leadId: string) => Promise<Facture | null>;
   resetDemo: () => void;
 }
 
@@ -772,6 +780,33 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [leads, auteur, pushActivite],
   );
 
+  const genererFactureSolde = useCallback<StoreValue["genererFactureSolde"]>(
+    async (leadId) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead) return null;
+      // Gate installation + solde réellement dû (Bloc C).
+      if (!peutGenererSolde(lead)) return null;
+      const ref = await reserveRef(lead.entite, "facture");
+      const facture = buildFactureSolde(lead, ref, new Date().toISOString());
+      if (!facture) return null;
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, facture, updated_at: new Date().toISOString() }
+            : l,
+        ),
+      );
+      const n = facture.acomptes_deduits?.length ?? 0;
+      pushActivite(
+        leadId,
+        "devis",
+        `Facture de solde ${ref} générée — ${n} acompte${n > 1 ? "s" : ""} déduit${n > 1 ? "s" : ""} (${formatMontant(facture.montant_ttc, facture.devise, { cents: true })} à payer)`,
+      );
+      return facture;
+    },
+    [leads, pushActivite],
+  );
+
   const resetDemo = useCallback(() => {
     const state = seedState();
     setLeads(state.leads);
@@ -823,6 +858,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       generateFacture,
       setEcheanceStatut,
       enregistrerReglement,
+      genererFactureSolde,
       resetDemo,
     }),
     [
@@ -849,6 +885,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       generateFacture,
       setEcheanceStatut,
       enregistrerReglement,
+      genererFactureSolde,
       resetDemo,
     ],
   );

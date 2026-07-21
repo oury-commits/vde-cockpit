@@ -500,7 +500,10 @@ export function LeadFiche() {
                 Voir la facture
               </Button>
             </div>
-          ) : lead.devis?.statut === "signe" ? (
+          ) : lead.devis?.statut === "signe" &&
+            (lead.factures_acompte?.length ?? 0) === 0 ? (
+            // Dossier sans acompte : facture normale directe. Avec acomptes, la
+            // clôture passe par la facture de SOLDE (carte Règlements).
             <Button variant="secondary" icon={Receipt} onClick={onConvertFacture} className="mt-3 w-full">
               Convertir en facture
             </Button>

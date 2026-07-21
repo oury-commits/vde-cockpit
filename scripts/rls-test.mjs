@@ -101,6 +101,11 @@ await db.exec(`
     ('FR-2','FR','Client FR 2','0600000002', 3100),
     ('MA-1','MA','Client MA 1','0600000011', 27000);
 
+  -- Facture de solde portee en JSONB sur le lead (Bloc C) : elle doit heriter
+  -- du cloisonnement financier de leads (entite ∩ montants).
+  update leads set facture = '{"ref":"FAC-2026-010","type":"solde","montant_ttc":950.40}'::jsonb
+    where id = 'FR-1';
+
   insert into activites (lead_id, type, contenu, auteur) values
     ('FR-1','note','note FR 1','Admin'),
     ('FR-2','note','note FR 2','Admin'),
@@ -359,7 +364,17 @@ console.log("\n=== 11. REGLEMENTS — registre financier cloisonne ===");
   verifie("l'admin peut annuler un encaissement", d2.ok === true && d2.count === 1);
 }
 
-console.log("\n=== 12. AUCUNE PORTE OUVERTE ===");
+console.log("\n=== 12. FACTURE DE SOLDE (JSONB sur le lead) — cloisonnement financier ===");
+{
+  const q = "select facture from leads where id = 'FR-1' and facture is not null";
+  verifie("admin lit la facture de solde de FR-1",         (await nb(U.admin, q)) === 1);
+  verifie("chargé d'affaires FR la lit",                   (await nb(U.caFr, q)) === 1);
+  verifie("chargé d'affaires MA ne la voit pas (autre entité)", (await nb(U.caMa, q)) === 0);
+  verifie("conducteur de travaux ne la voit pas (aveugle aux montants)", (await nb(U.condFr, q)) === 0);
+  verifie("technicien ne la voit pas",                     (await nb(U.techFr, q)) === 0);
+}
+
+console.log("\n=== 13. AUCUNE PORTE OUVERTE ===");
 {
   const ouvertes = await db.query(`
     select tablename, policyname from pg_policies
