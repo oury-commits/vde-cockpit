@@ -60,6 +60,8 @@ await db.exec(`
   grant usage on schema public to anon, authenticated;
   grant all on all tables in schema public to anon, authenticated;
   grant all on all sequences in schema public to anon, authenticated;
+  grant usage on schema storage to anon, authenticated;
+  grant all on all tables in schema storage to anon, authenticated;
 `);
 
 // --- Jeu d'essai (posé en superuser, donc au-dessus de la RLS) ---------------
@@ -113,6 +115,11 @@ await db.exec(`
     ('I-2','FR','FR-2','${U.techFr}',  now(), '11:00 – 12:00','sav','Client FR 2'),
     ('I-3','FR','FR-2','${U.techFr2}', now(), '14:00 – 16:00','pose','Client FR 2'),
     ('I-4','MA','MA-1','${U.techMa}',  now(), '09:30 – 11:30','pose','Client MA 1');
+
+  insert into storage.objects (bucket_id, name) values
+    ('documents','FR/VDE-2026-001.pdf'),
+    ('documents','FR/VDE-2026-002.pdf'),
+    ('documents','MA/VDE-2026-001.pdf');
 `);
 
 // --- Exécution dans la peau d'un utilisateur --------------------------------
@@ -291,13 +298,50 @@ console.log("\n=== 9. NUMÉROTATION (next_sequence) ===");
   verifie("un conducteur de travaux non plus", d.ok === false);
 }
 
-console.log("\n=== 10. AUCUNE PORTE OUVERTE ===");
+console.log("\n=== 10. STORAGE — les fichiers cloisonnés comme les lignes ===");
+{
+  const q = "select * from storage.objects where bucket_id = 'documents'";
+  verifie("admin voit les 3 documents",            (await nb(U.admin, q)) === 3);
+  verifie("chargé d'affaires FR voit ses 2 PDF FR", (await nb(U.caFr, q)) === 2);
+  verifie("chargé d'affaires MA voit son 1 PDF MA", (await nb(U.caMa, q)) === 1);
+  verifie("assistante FR voit les 2 PDF FR",       (await nb(U.assistFr, q)) === 2);
+  verifie("conducteur de travaux : 0 (aveugle aux montants → aux devis)",
+    (await nb(U.condFr, q)) === 0);
+  verifie("technicien : 0 PDF (ne lit pas un devis client)", (await nb(U.techFr, q)) === 0);
+  verifie("anon : 0", (await commeAnon(q)).rows?.length === 0);
+
+  // Le piège du vide, encore : le PDF MA existe (l'admin le voit), le FR ne le voit pas.
+  const vuAdmin = await nb(U.admin, "select * from storage.objects where name = 'MA/VDE-2026-001.pdf'");
+  const vuFr = await nb(U.caFr, "select * from storage.objects where name = 'MA/VDE-2026-001.pdf'");
+  verifie("PDF MA : REFUS pour le FR, pas un bucket vide", vuAdmin === 1 && vuFr === 0);
+
+  // Écriture : on ne dépose pas hors de son entité (exfiltration par upload).
+  const w1 = await commeUtilisateur(U.caFr, "insert into storage.objects (bucket_id, name) values ('documents','FR/VDE-2026-050.pdf')");
+  verifie("chargé d'affaires FR dépose un PDF FR", w1.ok === true, w1.erreur?.slice(0, 60));
+  const w2 = await commeUtilisateur(U.caFr, "insert into storage.objects (bucket_id, name) values ('documents','MA/VDE-2026-050.pdf')");
+  verifie("chargé d'affaires FR ne peut PAS déposer sous MA/", w2.ok === false, w2.erreur?.slice(0, 60));
+  const w3 = await commeUtilisateur(U.techFr, "insert into storage.objects (bucket_id, name) values ('documents','FR/photo.pdf')");
+  verifie("un technicien ne dépose pas dans documents", w3.ok === false);
+
+  // Chemin sans préfixe entité connu → refusé (deny by default).
+  const w4 = await commeUtilisateur(U.caFr, "insert into storage.objects (bucket_id, name) values ('documents','sans-prefixe.pdf')");
+  verifie("chemin sans préfixe FR/ ou MA/ : refusé", w4.ok === false);
+
+  // Suppression : admin seul.
+  const d1 = await commeUtilisateur(U.caFr, "delete from storage.objects where name = 'FR/VDE-2026-001.pdf'");
+  verifie("chargé d'affaires ne supprime pas un document émis", d1.ok === true && d1.count === 0);
+  const d2 = await commeUtilisateur(U.admin, "delete from storage.objects where name = 'FR/VDE-2026-001.pdf'");
+  verifie("l'admin supprime un document", d2.ok === true && d2.count === 1);
+}
+
+console.log("\n=== 11. AUCUNE PORTE OUVERTE ===");
 {
   const ouvertes = await db.query(`
     select tablename, policyname from pg_policies
-     where schemaname = 'public' and ('anon' = any(roles) or 'public' = any(roles))`);
-  verifie("aucune policy accordée à anon ou public", ouvertes.rows.length === 0,
-    JSON.stringify(ouvertes.rows));
+     where schemaname in ('public', 'storage')
+       and ('anon' = any(roles) or 'public' = any(roles))`);
+  verifie("aucune policy (public ou storage) accordée à anon ou public",
+    ouvertes.rows.length === 0, JSON.stringify(ouvertes.rows));
 
   const sansRls = await db.query(`
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
