@@ -98,7 +98,10 @@ export interface DevisDraft {
   config: DevisConfig;
   supplements: DevisSupplement[];
   taux_marge: number; // marge cible globale (0.35 par défaut)
-  remise: number; // réduction commerciale HT
+  /** Réduction commerciale : saisie en % du HT ou en montant fixe, + motif. */
+  remise_type: "percent" | "montant";
+  remise_valeur: number;
+  remise_motif: string;
   mode_tva: ModeTva;
   mode_paiement: ModePaiement;
   notes: string;

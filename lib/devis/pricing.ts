@@ -8,6 +8,23 @@ import type { DevisLigne, ModePaiement } from "@/lib/devis/types";
 export const MARGE_DEFAUT = 0.35;
 export const MARGE_MAX = 0.9;
 
+/** Sous ce seuil de marge (sur PV), on alerte l'utilisateur (interne only). */
+export const SEUIL_MARGE_ALERTE = 0.2;
+
+export type MargeNiveau = "ok" | "faible" | "perte";
+
+/**
+ * Niveau d'alerte marge, calculé sur la marge APRÈS remise. `perte` (< 0 %)
+ * signifie vendre en dessous du coût de revient — bloquant mais forçable ;
+ * `faible` (< 20 %) est un simple avertissement. À n'afficher que sur l'écran
+ * interne, jamais côté client.
+ */
+export function margeNiveau(margePct: number): MargeNiveau {
+  if (margePct < 0) return "perte";
+  if (margePct < SEUIL_MARGE_ALERTE) return "faible";
+  return "ok";
+}
+
 export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
@@ -29,32 +46,54 @@ export function ligneTotalHt(ligne: DevisLigne): number {
   return round2(ligne.pu_ht * ligne.quantite);
 }
 
+/** Mode de saisie d'une remise : pourcentage du HT, ou montant fixe. */
+export type RemiseType = "percent" | "montant";
+
+export interface RemiseSpec {
+  type: RemiseType;
+  valeur: number; // 10 (= 10 %) ou 500 (= 500 €)
+}
+
+/**
+ * Montant € de la remise, borné à [0 ; HT brut] — une remise ne peut ni être
+ * négative ni dépasser le total. C'est le SEUL endroit qui convertit un % en
+ * euros, pour qu'aperçu, PDF et snapshot partagent exactement la même valeur.
+ */
+export function remiseEuro(htBrut: number, spec?: RemiseSpec | null): number {
+  if (!spec || !Number.isFinite(spec.valeur) || spec.valeur <= 0) return 0;
+  const brut = spec.type === "percent" ? htBrut * (spec.valeur / 100) : spec.valeur;
+  return round2(Math.min(Math.max(0, brut), htBrut));
+}
+
 export interface DevisTotaux {
   cout_total: number; // interne : somme des coûts de revient
   montant_ht_brut: number; // avant réduction
-  remise: number; // réduction commerciale HT appliquée
-  montant_ht: number; // après réduction
+  remise: number; // réduction commerciale HT appliquée (€)
+  remise_type: RemiseType; // saisie d'origine (pour l'affichage / la ré-édition)
+  remise_valeur: number;
+  montant_ht: number; // après réduction — base de la TVA
   marge_euro: number;
-  marge_pct: number; // marge € / HT
+  marge_pct: number; // marge € / HT net
   taux_tva: number;
   montant_tva: number;
   montant_ttc: number;
 }
 
 /**
- * Totaux du devis : HT (après réduction commerciale) puis TVA. Aucune aide ni
- * subvention n'est déduite — le TTC est le montant réellement dû par le client.
+ * Totaux du devis. Ordre conforme (I-14° CGI) : HT brut → − remise → HT net →
+ * TVA (sur le HT NET) → TTC. La remise n'est JAMAIS appliquée après la TVA.
+ * Aucune aide ni subvention n'est déduite — le TTC est le montant dû.
  */
 export function computeTotaux(
   lignes: DevisLigne[],
   tauxTva: number,
-  remise = 0,
+  remise: RemiseSpec | null = null,
 ): DevisTotaux {
   const cout_total = round2(
     lignes.reduce((s, l) => s + l.cout_ht * l.quantite, 0),
   );
   const montant_ht_brut = round2(lignes.reduce((s, l) => s + ligneTotalHt(l), 0));
-  const remiseAppliquee = round2(Math.min(Math.max(0, remise), montant_ht_brut));
+  const remiseAppliquee = remiseEuro(montant_ht_brut, remise);
   const montant_ht = round2(montant_ht_brut - remiseAppliquee);
   const marge_euro = round2(montant_ht - cout_total);
   const marge_pct = montant_ht > 0 ? marge_euro / montant_ht : 0;
@@ -64,6 +103,8 @@ export function computeTotaux(
     cout_total,
     montant_ht_brut,
     remise: remiseAppliquee,
+    remise_type: remise?.type ?? "percent",
+    remise_valeur: remise?.valeur ?? 0,
     montant_ht,
     marge_euro,
     marge_pct,

@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import type { Devis, Entite, Facture, Lead } from "@/lib/types";
 import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
+import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
 import { buildEcheancier } from "@/lib/leads/devis";
 
 /**
@@ -27,6 +28,8 @@ export function buildFacture(devis: Devis, ref: string, dateISO: string): Factur
     date_creation: dateISO,
     devis_ref: devis.ref,
     lignes: devis.lignes,
+    montant_ht_brut: devis.montant_ht_brut,
+    remise: devis.remise ?? null,
     montant_ht: devis.montant_ht,
     mode_tva: devis.mode_tva,
     taux_tva: devis.taux_tva,
@@ -109,7 +112,14 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     doc.text(val, pageW - mx, y, { align: "right" });
     y += 6;
   };
-  tot("Total HT", m(facture.montant_ht));
+  // Même ordre conforme que le devis : HT brut → − remise → HT net → TVA → TTC.
+  if (facture.remise && facture.remise.montant > 0) {
+    tot("Total HT brut", m(facture.montant_ht_brut ?? facture.montant_ht));
+    tot(remiseLabel(facture.remise), `− ${m(facture.remise.montant)}`);
+    tot("Total HT net", m(facture.montant_ht));
+  } else {
+    tot("Total HT", m(facture.montant_ht));
+  }
   tot(
     facture.mode_tva === "fr_autoliquidation"
       ? "TVA — autoliquidation"
@@ -139,6 +149,10 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   y += 8;
   doc.setTextColor(...MUTED);
   doc.setFontSize(8);
+  if (facture.remise && facture.remise.montant > 0) {
+    doc.text(MENTION_REMISE, mx, y);
+    y += 4;
+  }
   if (opt.mention) {
     doc.text(opt.mention, mx, y);
     y += 4;

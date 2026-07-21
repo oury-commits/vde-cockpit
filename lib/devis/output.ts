@@ -1,4 +1,4 @@
-import type { Devis, LigneDevis } from "@/lib/types";
+import type { Devis, LigneDevis, RemiseInfo } from "@/lib/types";
 import { entiteConfig } from "@/lib/entite/config";
 import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import type { DevisDraft, DevisLigne } from "@/lib/devis/types";
@@ -24,21 +24,26 @@ export function buildDevisSnapshot(
     url_produit: l.url_produit ?? null,
     categorie: l.categorie ?? null,
   }));
-  // La réduction commerciale apparaît comme une ligne négative dans le devis.
-  if (totaux.remise > 0) {
-    lignesDevis.push({
-      label: "Réduction commerciale",
-      montant_ht: -totaux.remise,
-      url_produit: null,
-      categorie: null,
-    });
-  }
+  // La remise est portée STRUCTURELLEMENT (pas comme une ligne négative) :
+  // c'est ce qui permet au PDF d'afficher HT brut → remise → HT net → TVA dans
+  // le bon ordre, et à la facture de la reprendre telle quelle.
+  const remise: RemiseInfo | null =
+    totaux.remise > 0
+      ? {
+          type: totaux.remise_type,
+          valeur: totaux.remise_valeur,
+          montant: totaux.remise,
+          motif: draft.remise_motif.trim() || null,
+        }
+      : null;
   return {
     ref,
     entite: draft.entite,
     devise: cfg.devise,
     date_creation: dateISO,
     lignes: lignesDevis,
+    montant_ht_brut: totaux.montant_ht_brut,
+    remise,
     montant_ht: totaux.montant_ht,
     mode_tva: draft.mode_tva,
     taux_tva: totaux.taux_tva,

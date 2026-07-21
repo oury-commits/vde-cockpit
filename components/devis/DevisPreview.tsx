@@ -7,6 +7,7 @@ import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
 import { buildEcheancierPaiement } from "@/lib/devis/pricing";
+import { MENTION_REMISE } from "@/lib/devis/remise";
 import { MODE_PAIEMENT_LABEL } from "@/lib/devis/types";
 
 const ECHEANCE_LABEL: Record<string, string> = {
@@ -28,7 +29,7 @@ export function DevisPreview() {
       ? "TVA — autoliquidation"
       : `TVA ${new Intl.NumberFormat("fr-FR").format(totaux.taux_tva * 100)} %`;
 
-  const echeances = buildEcheancierPaiement(totaux.montant_ttc, draft.mode_paiement);
+  const echeances = buildEcheancierPaiement(totaux.montant_ttc, draft.mode_paiement);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
@@ -94,23 +95,33 @@ export function DevisPreview() {
           </ul>
         )}
 
-        {/* Totaux */}
+        {/* Totaux — ordre conforme : HT brut → remise → HT net → TVA → TTC */}
         <div className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-sm">
           {totaux.remise > 0 ? (
             <>
-              <Row label="Sous-total HT" value={m(totaux.montant_ht_brut)} />
-              <Row label="Réduction" value={`− ${m(totaux.remise)}`} tone="gold" />
+              <Row label="Total HT brut" value={m(totaux.montant_ht_brut)} />
+              <Row
+                label={
+                  totaux.remise_type === "percent"
+                    ? `Remise ${new Intl.NumberFormat("fr-FR").format(totaux.remise_valeur)} %`
+                    : "Remise"
+                }
+                value={`− ${m(totaux.remise)}`}
+                tone="gold"
+              />
+              <Row label="Total HT net" value={m(totaux.montant_ht)} />
             </>
-          ) : null}
-          <Row label="Total HT" value={m(totaux.montant_ht)} />
-          <Row
-            label={tvaLabel}
-            value={m(totaux.montant_tva)}
-          />
+          ) : (
+            <Row label="Total HT" value={m(totaux.montant_ht)} />
+          )}
+          <Row label={tvaLabel} value={m(totaux.montant_tva)} />
           {/* Aucune aide déduite : le TTC est le montant dû par le client. */}
           <Row label="Total TTC" value={m(totaux.montant_ttc)} strong />
         </div>
 
+        {totaux.remise > 0 ? (
+          <p className="mt-2 text-[11px] text-muted">{MENTION_REMISE}</p>
+        ) : null}
         {opt.mention ? (
           <p className="mt-2 text-[11px] text-muted">{opt.mention}</p>
         ) : null}

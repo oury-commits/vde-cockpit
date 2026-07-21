@@ -26,7 +26,11 @@ import { generateDevisPdf } from "@/lib/leads/devis";
 import type { DevisDraft, ModeDevis, VueDevis } from "@/lib/devis/types";
 import { MODE_DEVIS_LABEL, WIZARD_STEPS } from "@/lib/devis/types";
 import { buildDraft, deriveLignes } from "@/lib/devis/builder";
-import { buildEcheancierPaiement, computeTotaux } from "@/lib/devis/pricing";
+import {
+  buildEcheancierPaiement,
+  computeTotaux,
+  margeNiveau,
+} from "@/lib/devis/pricing";
 import {
   computeControle,
   estConforme,
@@ -60,6 +64,8 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   const [saved, setSaved] = useState<null | "brouillon" | "valide">(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Vente à perte : on ne bloque pas Oury, on lui fait confirmer une fois.
+  const [confirmPerte, setConfirmPerte] = useState(false);
 
   const ready = catalogue.loaded && (!leadId || leads.loaded);
   const lead = leadId ? leads.leads.find((l) => l.id === leadId) ?? null : null;
@@ -90,7 +96,10 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
   const totaux = useMemo(() => {
     if (!draft) return null;
     const taux = optionTva(draft.entite, draft.mode_tva).taux;
-    return computeTotaux(lignes, taux, draft.remise);
+    return computeTotaux(lignes, taux, {
+      type: draft.remise_type,
+      valeur: draft.remise_valeur,
+    });
   }, [draft, lignes]);
   const controle = useMemo(
     () =>
@@ -177,6 +186,17 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
       return;
     }
     if (!canExport || !conforme) return;
+
+    // Vente à perte : bloquant mais forçable. Première tentative → on demande
+    // confirmation ; la seconde passe. Une case décochée ne vend jamais à perte
+    // par inadvertance.
+    if (margeNiveau(totaux.marge_pct) === "perte" && !confirmPerte) {
+      setConfirmPerte(true);
+      setError(
+        `Marge négative (${Math.round(totaux.marge_pct * 100)} %) — tu vends à perte. Re-clique sur « Valider » pour confirmer l'émission.`,
+      );
+      return;
+    }
 
     setBusy(true);
     try {

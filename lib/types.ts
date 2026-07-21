@@ -101,6 +101,19 @@ export interface LigneDevis {
   categorie?: string | null;
 }
 
+/**
+ * Réduction commerciale. Déduite du HT **avant** TVA (ordre imposé par le
+ * I-14° de l'art. 242 nonies A CGI) : HT brut − remise → HT net → TVA → TTC.
+ * `montant` est toujours le montant € effectif ; `type`/`valeur` gardent la
+ * saisie d'origine (10 % ou 500 €) pour l'afficher et la ré-éditer sans dérive.
+ */
+export interface RemiseInfo {
+  type: "percent" | "montant";
+  valeur: number; // 10 (= 10 %) ou 500 (= 500 €)
+  montant: number; // € réellement déduit du HT brut
+  motif?: string | null;
+}
+
 /** Devis lié à un lead. Devise, TVA et numérotation suivent l'entité. */
 export interface Devis {
   ref: string; // VDE-2026-XXX (FR) / VDE-MA-2026-XXX (MA)
@@ -108,7 +121,14 @@ export interface Devis {
   devise: Devise; // EUR (FR) / MAD (MA)
   date_creation: string;
   lignes: LigneDevis[];
-  montant_ht: number;
+  /**
+   * HT AVANT remise (somme des lignes). Optionnel : absent des devis émis avant
+   * l'introduction de la remise structurée → alors égal à `montant_ht`.
+   */
+  montant_ht_brut?: number;
+  /** Réduction commerciale, ou null/absent si aucune. */
+  remise?: RemiseInfo | null;
+  montant_ht: number; // HT NET (après remise) — base de la TVA
   mode_tva: ModeTva;
   taux_tva: number; // 0.055, 0.10, 0.20, ou 0 (autoliquidation)
   montant_tva: number;
@@ -128,7 +148,11 @@ export interface Facture {
   date_creation: string;
   devis_ref: string; // devis d'origine
   lignes: LigneDevis[];
-  montant_ht: number;
+  /** HT avant remise (reporté du devis). Absent = pas de remise. */
+  montant_ht_brut?: number;
+  /** Réduction commerciale reportée du devis. */
+  remise?: RemiseInfo | null;
+  montant_ht: number; // HT net (après remise)
   mode_tva: ModeTva;
   taux_tva: number;
   montant_tva: number;

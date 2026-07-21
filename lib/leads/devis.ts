@@ -3,6 +3,7 @@ import type { Devis, Echeance, Entite, Lead, ModeTva } from "@/lib/types";
 import { formatDate, formatMontant } from "@/lib/format";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { QR_LABEL, qrDataUrl } from "@/lib/devis/qr";
+import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
 import { buildLignes } from "@/lib/leads/pricing";
 
 export { buildLignes } from "@/lib/leads/pricing";
@@ -182,7 +183,14 @@ async function buildDevisDoc(
     doc.text(val, pageW - mx, y, { align: "right" });
     y += 6;
   };
-  tot("Total HT", eur(devis.montant_ht));
+  // Ordre conforme (I-14° CGI) : HT brut → − remise → HT net → TVA → TTC.
+  if (devis.remise && devis.remise.montant > 0) {
+    tot("Total HT brut", eur(devis.montant_ht_brut ?? devis.montant_ht));
+    tot(remiseLabel(devis.remise), `− ${eur(devis.remise.montant)}`);
+    tot("Total HT net", eur(devis.montant_ht));
+  } else {
+    tot("Total HT", eur(devis.montant_ht));
+  }
   const tvaLabel =
     devis.mode_tva === "fr_autoliquidation"
       ? "TVA — autoliquidation"
@@ -213,6 +221,10 @@ async function buildDevisDoc(
   y += 8;
   doc.setTextColor(...MUTED);
   doc.setFontSize(8);
+  if (devis.remise && devis.remise.montant > 0) {
+    doc.text(MENTION_REMISE, mx, y);
+    y += 4;
+  }
   if (opt.mention) {
     doc.text(opt.mention, mx, y);
     y += 4;
