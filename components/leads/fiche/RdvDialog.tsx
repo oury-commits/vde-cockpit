@@ -9,6 +9,8 @@ import type { Lead, RdvType } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
 import { useProfiles } from "@/lib/roles/ProfilesProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { haversineKm } from "@/lib/planning/tour";
+import { MAX_RDV_JOUR, SEUIL_ALERTE_KM } from "@/lib/planning/config";
 import { adresseComplete, borneLabel, buildEventInput, syncRdv } from "./rdvSync";
 
 const TYPES: { value: RdvType; label: string }[] = [
@@ -27,6 +29,10 @@ const DUREES: { value: number; label: string }[] = [
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
+const localDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 /** Composantes locales (date + heure) d'un ISO, pour préremplir les champs. */
 function localParts(iso: string): { date: string; heure: string } {
@@ -73,8 +79,60 @@ export function RdvDialog({ lead, onClose }: { lead: Lead; onClose: () => void }
     [profiles, lead.entite],
   );
 
+  // Garde-fous tournée : charge du jour (max 2/tech) + proximité géographique
+  // (indicative, à vol d'oiseau — l'écran Tournées confirme au temps réel).
+  const infoTech = useMemo(() => {
+    const clientLat = lead.lat;
+    const clientLng = lead.lng;
+    const m = new Map<string, { count: number; distKm: number | null }>();
+    for (const t of techniciens) {
+      const memeJour = date
+        ? store.leads.filter(
+            (l) =>
+              l.id !== lead.id &&
+              l.rdv &&
+              l.rdv.technicien_id === t.id &&
+              localDay(l.rdv.debut) === date,
+          )
+        : [];
+      let distKm: number | null = null;
+      if (typeof clientLat === "number" && typeof clientLng === "number") {
+        for (const l of memeJour) {
+          if (typeof l.lat === "number" && typeof l.lng === "number") {
+            const d = haversineKm({ lat: clientLat, lng: clientLng }, { lat: l.lat, lng: l.lng });
+            distKm = distKm === null ? d : Math.min(distKm, d);
+          }
+        }
+      }
+      m.set(t.id, { count: memeJour.length, distKm });
+    }
+    return m;
+  }, [techniciens, store.leads, date, lead.id, lead.lat, lead.lng]);
+
+  // Suggestion : le plus proche parmi ceux qui n'ont pas atteint la limite ;
+  // à défaut de géo, le moins chargé.
+  const suggestionId = useMemo(() => {
+    const libres = techniciens.filter((t) => (infoTech.get(t.id)?.count ?? 0) < MAX_RDV_JOUR);
+    if (libres.length === 0) return null;
+    const avecDist = libres.filter((t) => infoTech.get(t.id)?.distKm != null);
+    if (avecDist.length) {
+      return avecDist.reduce((a, b) =>
+        infoTech.get(a.id)!.distKm! <= infoTech.get(b.id)!.distKm! ? a : b,
+      ).id;
+    }
+    return libres.reduce((a, b) =>
+      (infoTech.get(a.id)?.count ?? 0) <= (infoTech.get(b.id)?.count ?? 0) ? a : b,
+    ).id;
+  }, [techniciens, infoTech]);
+
+  const suggestion = techniciens.find((t) => t.id === suggestionId) ?? null;
+  const suggDist = suggestionId ? infoTech.get(suggestionId)?.distKm ?? null : null;
+
   const tech = techniciens.find((t) => t.id === technicienId) ?? null;
-  const peut = Boolean(date && heure && tech) && !busy;
+  const selInfo = tech ? infoTech.get(tech.id) : undefined;
+  const tropDeRdv = (selInfo?.count ?? 0) >= MAX_RDV_JOUR;
+  const trajetLoin = (selInfo?.distKm ?? 0) > SEUIL_ALERTE_KM;
+  const peut = Boolean(date && heure && tech) && !tropDeRdv && !busy;
   const adresse = adresseComplete(lead);
   const borne = borneLabel(lead);
 
@@ -156,12 +214,27 @@ export function RdvDialog({ lead, onClose }: { lead: Lead; onClose: () => void }
             disabled={aucunTech}
           >
             <option value="">— Choisir —</option>
-            {techniciens.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nom}
-              </option>
-            ))}
+            {techniciens.map((t) => {
+              const info = infoTech.get(t.id);
+              const charge = info?.count ? ` · ${info.count}/${MAX_RDV_JOUR}` : "";
+              return (
+                <option key={t.id} value={t.id} disabled={(info?.count ?? 0) >= MAX_RDV_JOUR}>
+                  {t.nom}
+                  {charge}
+                </option>
+              );
+            })}
           </Select>
+          {suggestion && suggestion.id !== technicienId ? (
+            <button
+              type="button"
+              onClick={() => setTechnicienId(suggestion.id)}
+              className="mt-1 text-left text-[12px] text-brand underline"
+            >
+              Suggéré : {suggestion.nom}
+              {suggDist != null ? ` — le plus proche (≈ ${Math.round(suggDist)} km)` : " — disponible"}
+            </button>
+          ) : null}
         </Field>
         <Field label="Date">
           <Input
@@ -201,6 +274,21 @@ export function RdvDialog({ lead, onClose }: { lead: Lead; onClose: () => void }
           Dossier {lead.id} · {lead.telephone}
         </p>
       </div>
+
+      {tech && tropDeRdv ? (
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-alert/30 bg-alert/8 px-3 py-2 text-[13px] text-alert">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={2} />
+          {tech.nom} a déjà {MAX_RDV_JOUR} RDV ce jour-là (limite atteinte).
+          Choisis un autre technicien ou un autre jour.
+        </p>
+      ) : tech && trajetLoin ? (
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-[13px] text-gold-ink">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={2} />
+          Trajet éloigné : ≈ {Math.round(selInfo!.distKm!)} km du RDV le plus
+          proche de {tech.nom} ce jour (seuil {SEUIL_ALERTE_KM} km, à vol
+          d&apos;oiseau). L&apos;écran Tournées confirme au temps réel.
+        </p>
+      ) : null}
 
       {aucunTech ? (
         <p className="mt-3 flex items-start gap-2 rounded-lg border border-alert/30 bg-alert/8 px-3 py-2 text-[13px] text-alert">

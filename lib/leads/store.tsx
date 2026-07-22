@@ -123,6 +123,8 @@ interface StoreValue {
   ) => void;
   /** Annule le RDV : repasse le lead à « signé », efface le RDV, trace l'annulation. */
   annulerRdv: (leadId: string) => void;
+  /** Enregistre le géocodage d'un lead (silencieux : ni timeline, ni verrou). */
+  setLeadGeo: (leadId: string, lat: number, lng: number) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   /** Note typée (appel / email / visite / note) avec portée interne ou client. */
   addNote: (
@@ -615,6 +617,12 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [leads, pushActivite],
   );
 
+  const setLeadGeo = useCallback<StoreValue["setLeadGeo"]>((leadId, lat, lng) => {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === leadId ? { ...l, lat, lng } : l)),
+    );
+  }, []);
+
   const generateDevis = useCallback<StoreValue["generateDevis"]>(
     async (leadId, mode) => {
       const lead = leads.find((l) => l.id === leadId);
@@ -974,6 +982,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       confirmerRdv,
       setRdvSync,
       annulerRdv,
+      setLeadGeo,
       addActivite: pushActivite,
       addNote,
       toggleJalon,
@@ -1004,6 +1013,7 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       confirmerRdv,
       setRdvSync,
       annulerRdv,
+      setLeadGeo,
       pushActivite,
       addNote,
       toggleJalon,

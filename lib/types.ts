@@ -316,6 +316,9 @@ export interface Lead {
   adresse?: string | null; // rue (STREET_ADDRESS de l'export Facebook)
   code_postal?: string | null;
   ville?: string | null;
+  /** Géocodage de l'adresse (planning / tournées). Rempli à la demande. */
+  lat?: number | null;
+  lng?: number | null;
 
   type_logement?: TypeLogement | null;
   type_vehicule?: string | null;
