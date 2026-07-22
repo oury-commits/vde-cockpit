@@ -6,6 +6,7 @@ import { PageTitle } from "@/components/ui/PageTitle";
 import { useSettings } from "@/lib/settings/store";
 import { formatMontant } from "@/lib/format";
 import { arrondiMad } from "@/lib/catalogue/prix";
+import { CalendarConnect } from "@/components/settings/CalendarConnect";
 
 export function ParametresView() {
   const { tauxMad, setTauxMad } = useSettings();
@@ -13,6 +14,8 @@ export function ParametresView() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <PageTitle>Paramètres</PageTitle>
+
+      <CalendarConnect />
 
       <section className="rounded-2xl border border-line bg-surface p-5">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
