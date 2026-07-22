@@ -1,6 +1,6 @@
 -- ============================================================================
 --  VDE Cockpit — Bootstrap Supabase PROD (schéma complet, idempotent).
---  Consolide les migrations 0001 + 0004 → 0018, dans l'ordre.
+--  Consolide les migrations 0001 + 0004 → 0019, dans l'ordre.
 --
 --  EXCLUS volontairement :
 --    · supabase/dev-only/0002_dev_open_access.sql (accès anon de dev) ;
