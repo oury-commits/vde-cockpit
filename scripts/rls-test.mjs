@@ -130,6 +130,9 @@ await db.exec(`
     ('R-1','FR-1','FR', 1250, 'virement'),
     ('R-2','FR-2','FR', 1550, 'cheque'),
     ('R-3','MA-1','MA', 13500, 'virement');
+
+  insert into calendar_tokens (user_id, access_token_enc) values
+    ('${U.admin}', 'chiffre-jamais-en-clair');
 `);
 
 // --- Exécution dans la peau d'un utilisateur --------------------------------
@@ -374,7 +377,21 @@ console.log("\n=== 12. FACTURE DE SOLDE (JSONB sur le lead) — cloisonnement fi
   verifie("technicien ne la voit pas",                     (await nb(U.techFr, q)) === 0);
 }
 
-console.log("\n=== 13. AUCUNE PORTE OUVERTE ===");
+console.log("\n=== 13. calendar_tokens — jetons Google SERVER-ONLY ===");
+{
+  const q = "select * from calendar_tokens";
+  verifie("admin (authenticated) ne lit AUCUN jeton", (await nb(U.admin, q)) === 0);
+  verifie("chargé d'affaires ne lit aucun jeton", (await nb(U.caFr, q)) === 0);
+  verifie("technicien ne lit aucun jeton", (await nb(U.techFr, q)) === 0);
+  const w = await commeUtilisateur(U.admin, `insert into calendar_tokens (user_id, access_token_enc) values ('${U.caFr}', 'y')`);
+  verifie("aucun utilisateur ne peut ÉCRIRE un jeton (server-only)", w.ok === false, w.erreur?.slice(0, 50));
+  const pol = await db.query("select count(*)::int n from pg_policies where schemaname='public' and tablename='calendar_tokens'");
+  verifie("calendar_tokens : 0 policy (accès service_role uniquement)", pol.rows[0].n === 0);
+  const rls = await db.query("select relrowsecurity r from pg_class where relname='calendar_tokens'");
+  verifie("calendar_tokens : RLS active", rls.rows[0].r === true);
+}
+
+console.log("\n=== 14. AUCUNE PORTE OUVERTE ===");
 {
   const ouvertes = await db.query(`
     select tablename, policyname from pg_policies

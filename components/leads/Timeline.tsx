@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Banknote,
   Bell,
+  CalendarClock,
   Download,
   FileText,
   Mail,
@@ -33,6 +34,7 @@ const ICONS: Record<ActiviteType, LucideIcon> = {
   statut: ArrowLeftRight,
   signature: PenLine,
   paiement: Banknote,
+  rdv: CalendarClock,
 };
 
 export function Timeline({ activites }: { activites: Activite[] }) {
