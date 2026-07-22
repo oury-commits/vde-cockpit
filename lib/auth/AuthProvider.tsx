@@ -20,6 +20,13 @@ interface AuthValue {
   session: Session | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  /**
+   * Envoie un email de réinitialisation (lien vers /reset-password). L'appelant
+   * affiche un message NEUTRE quel que soit le résultat — anti-énumération.
+   */
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  /** Change le mot de passe (session de récupération OU utilisateur connecté). */
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -53,6 +60,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await getSupabase()?.auth.signOut();
   }, []);
 
+  const resetPassword = useCallback<AuthValue["resetPassword"]>(async (email) => {
+    const sb = getSupabase();
+    if (!sb) return { error: "Auth non configurée." };
+    // Le lien du mail renvoie ici ; l'URL doit être autorisée côté Supabase.
+    const redirectTo = `${window.location.origin}/reset-password`;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    return { error: error ? error.message : null };
+  }, []);
+
+  const updatePassword = useCallback<AuthValue["updatePassword"]>(async (password) => {
+    const sb = getSupabase();
+    if (!sb) return { error: "Auth non configurée." };
+    const { error } = await sb.auth.updateUser({ password });
+    return { error: error ? error.message : null };
+  }, []);
+
   const value = useMemo<AuthValue>(
     () => ({
       enabled: isSupabaseConfigured,
@@ -61,8 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       signIn,
       signOut,
+      resetPassword,
+      updatePassword,
     }),
-    [loading, session, signIn, signOut],
+    [loading, session, signIn, signOut, resetPassword, updatePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
