@@ -122,7 +122,11 @@ export function ArticleDialog({
           <Button variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button onClick={submit} disabled={!valid}>
+          <Button
+            onClick={submit}
+            disabled={!valid}
+            title={!valid ? "Renseigne une désignation et un coût valide" : undefined}
+          >
             {isEdit ? "Enregistrer" : "Ajouter"}
           </Button>
         </>
@@ -233,12 +237,22 @@ export function ArticleDialog({
             <label className="mt-2 flex items-center gap-2 text-sm text-ink">
               <input
                 type="checkbox"
-                className="size-4 accent-brand"
+                className="size-4 accent-brand disabled:opacity-40"
                 checked={form.afficher_qr}
                 onChange={(e) => set("afficher_qr", e.target.checked)}
                 disabled={!form.url_produit.trim()}
+                title={
+                  !form.url_produit.trim()
+                    ? "Renseigne d'abord l'URL de la fiche produit"
+                    : undefined
+                }
               />
-              Afficher le QR sur le devis
+              <span title={!form.url_produit.trim() ? "Renseigne d'abord l'URL de la fiche produit" : undefined}>
+                Afficher le QR sur le devis
+                {!form.url_produit.trim() ? (
+                  <span className="ml-1 text-[11px] text-muted">(URL requise)</span>
+                ) : null}
+              </span>
             </label>
           ) : (
             <span className="mt-1 block text-[11px] text-muted">

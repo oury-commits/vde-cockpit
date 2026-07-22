@@ -1,12 +1,9 @@
-import { LeadsStoreProvider } from "@/lib/leads/store";
 import { CatalogueStoreProvider } from "@/lib/catalogue/store";
 
+// Le store des leads vient du layout parent /devis ; ici on ajoute seulement
+// le catalogue, nécessaire au wizard.
 export default function DevisNouveauLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <LeadsStoreProvider>
-      <CatalogueStoreProvider>{children}</CatalogueStoreProvider>
-    </LeadsStoreProvider>
-  );
+  return <CatalogueStoreProvider>{children}</CatalogueStoreProvider>;
 }

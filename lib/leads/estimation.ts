@@ -26,3 +26,34 @@ export function computeEstimation(lead: Lead, entite: Entite): Estimation {
     devise: cfg.symbole,
   };
 }
+
+export interface EstimationAffichee extends Estimation {
+  /** true = valeur ferme (devis émis ou montant saisi) ; false = fourchette auto. */
+  fixe: boolean;
+  source: "devis" | "saisi" | "auto";
+}
+
+/**
+ * SOURCE UNIQUE du « montant du dossier », partagée par la fiche, la liste, le
+ * tri et le drawer. Précédence : devis émis (TTC figé) → montant saisi à la main
+ * → estimation auto (fourchette). Évite qu'un écran affiche la fourchette
+ * calculée pendant qu'un autre montre le montant saisi.
+ */
+export function estimationLead(lead: Lead, entite: Entite): EstimationAffichee {
+  const cfg = entiteConfig(entite);
+  if (lead.devis) {
+    const v = lead.devis.montant_ttc;
+    return { min: v, max: v, devise: cfg.symbole, fixe: true, source: "devis" };
+  }
+  if (lead.montant_estime != null) {
+    const v = lead.montant_estime;
+    return { min: v, max: v, devise: cfg.symbole, fixe: true, source: "saisi" };
+  }
+  return { ...computeEstimation(lead, entite), fixe: false, source: "auto" };
+}
+
+/** Valeur représentative (point) pour la liste / le tri — même source. */
+export function montantLead(lead: Lead): number {
+  const e = estimationLead(lead, lead.entite);
+  return e.fixe ? e.min : Math.round((e.min + e.max) / 2);
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { EntitySwitcher } from "@/components/layout/EntitySwitcher";
 import { useIdentity } from "@/lib/roles/IdentityProvider";
 import { peutVoirModule } from "@/lib/roles/permissions";
@@ -11,35 +11,15 @@ export function Topbar() {
   // Pas de raccourci vers un module inaccessible : ce serait une impasse.
   const peutCreerDevis = peutVoirModule(identite, "devis");
 
+  // Recherche globale et cloche de notifications RETIRÉES tant qu'elles ne sont
+  // pas branchées : un champ/bouton stylé qui ne fait rien est un faux-actif
+  // (cul-de-sac). À réintroduire une fois la recherche et les notifications
+  // réellement implémentées.
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-line bg-surface px-3 md:px-6">
       <EntitySwitcher />
 
-      {/* Recherche */}
-      <div className="relative hidden max-w-[430px] flex-1 md:block">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
-          strokeWidth={1.75}
-        />
-        <input
-          type="search"
-          placeholder="Rechercher un client, un devis, un lead…"
-          className="h-9 w-full rounded-lg border border-line bg-cream/50 pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-brand/30 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
-        />
-      </div>
-
-      {/* Actions */}
       <div className="ml-auto flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="relative grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-cream hover:text-ink"
-        >
-          <Bell className="size-[18px]" strokeWidth={1.75} />
-          {/* Pas de pastille « non lu » factice : un point d'alerte statique
-              simule des notifications actionnables qui n'existent pas encore.
-              TODO: rebrancher l'indicateur quand les notifications seront réelles. */}
-        </button>
         {peutCreerDevis ? (
           <Link
             href="/devis/nouveau"

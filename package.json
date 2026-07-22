@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rls": "node scripts/rls-test.mjs"
+    "test:rls": "node scripts/rls-test.mjs",
+    "test:reste": "node scripts/reste-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.5",

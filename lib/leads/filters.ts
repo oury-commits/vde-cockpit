@@ -1,5 +1,6 @@
 import type { Lead, Statut, Temperature } from "@/lib/types";
 import { TEMPERATURE_META } from "@/lib/leads/meta";
+import { montantLead } from "@/lib/leads/estimation";
 
 export type RelanceState = "en_retard" | "aujourdhui" | "a_venir";
 export type DevisState = "sans" | "envoye" | "signe";
@@ -62,9 +63,13 @@ export function devisState(lead: Lead): DevisState {
   return lead.devis.statut === "signe" ? "signe" : "envoye";
 }
 
-/** Montant de référence d'un lead (devis TTC sinon estimation). */
+/**
+ * Montant de référence d'un lead — SOURCE UNIQUE (devis TTC → montant saisi →
+ * estimation auto). Délègue à `montantLead` pour que la liste et le tri
+ * s'alignent sur ce qu'affiche la fiche.
+ */
 export function leadMontant(lead: Lead): number {
-  return lead.devis?.montant_ttc ?? lead.montant_estime ?? 0;
+  return montantLead(lead);
 }
 
 // ── Recherche / filtres ─────────────────────────────────────────────────────
