@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:rls": "node scripts/rls-test.mjs",
-    "test:calendar": "node scripts/calendar-crypto-test.mjs"
+    "test:calendar": "node scripts/calendar-crypto-test.mjs",
+    "test:calendar-event": "node scripts/calendar-event-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.5",

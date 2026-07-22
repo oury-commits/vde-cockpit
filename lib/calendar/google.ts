@@ -131,18 +131,24 @@ export interface CalendarEvent {
   description?: string;
   start: { dateTime: string; timeZone?: string };
   end: { dateTime: string; timeZone?: string };
-  attendees?: { email: string }[];
+  attendees?: { email: string; displayName?: string }[];
+  /** Propriétés privées de réconciliation (ex. id du lead CRM). */
+  extendedProperties?: { private?: Record<string, string> };
 }
 
+// sendUpdates=all → Google envoie l'invitation/la mise à jour/l'annulation par
+// email aux attendees (le technicien assigné). C'est le cœur du modèle « agenda
+// partagé » : le tech reçoit l'invit sans avoir à connecter son propre compte.
 export async function createEvent(
   accessToken: string,
   calendarId: string,
   event: CalendarEvent,
 ): Promise<{ id: string }> {
-  const res = await api(accessToken, `/calendars/${encodeURIComponent(calendarId)}/events`, {
-    method: "POST",
-    body: JSON.stringify(event),
-  });
+  const res = await api(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
+    { method: "POST", body: JSON.stringify(event) },
+  );
   if (!res.ok) throw new Error(`createEvent ${res.status}`);
   return (await res.json()) as { id: string };
 }
@@ -155,7 +161,7 @@ export async function updateEvent(
 ): Promise<void> {
   const res = await api(
     accessToken,
-    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
     { method: "PATCH", body: JSON.stringify(event) },
   );
   if (!res.ok) throw new Error(`updateEvent ${res.status}`);
@@ -168,7 +174,7 @@ export async function deleteEvent(
 ): Promise<void> {
   const res = await api(
     accessToken,
-    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
     { method: "DELETE" },
   );
   // 410 = déjà supprimé → idempotent, on n'échoue pas.

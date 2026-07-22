@@ -74,7 +74,8 @@ export type ActiviteType =
   | "relance"
   | "statut"
   | "signature"
-  | "paiement";
+  | "paiement"
+  | "rdv";
 
 /** Statut d'une échéance de l'échéancier 40/40/20 (§6.6). */
 export type StatutEcheance = "attendu" | "encaisse" | "en_retard";
@@ -267,6 +268,40 @@ export interface Activite {
   visibilite?: Visibilite | null;
 }
 
+/**
+ * Type d'un rendez-vous posé. Une installation (`pose`) est le cas par défaut
+ * du verrou « acompte encaissé → RDV » ; les deux autres couvrent les visites.
+ */
+export type RdvType = "pose" | "visite_technique" | "sav";
+
+/**
+ * État de synchronisation d'un RDV avec l'agenda Google VDE. La synchro est
+ * best-effort et JAMAIS bloquante : un RDV reste parfaitement valide côté CRM
+ * même si aucun agenda n'est connecté (`non_synchronise`).
+ */
+export type RdvSync = "non_synchronise" | "synchronise" | "echec";
+
+/**
+ * Rendez-vous d'installation confirmé (acompte encaissé). Porté par le lead —
+ * le seul magasin persistant et câblé aujourd'hui. `google_event_id` relie
+ * l'événement de l'agenda VDE maître, créé/mis à jour/supprimé au fil du RDV.
+ * Modèle « agenda partagé » : le technicien est INVITÉ par email (attendee), il
+ * n'a pas besoin de connecter son propre compte Google.
+ */
+export interface RdvInstall {
+  type: RdvType;
+  debut: string; // ISO datetime
+  fin: string; // ISO datetime
+  /** Profil du technicien assigné (attendee de l'événement Google). */
+  technicien_id: string;
+  /** Dénormalisé : nom + email pour l'affichage et l'invitation, sans re-jointure. */
+  technicien_nom: string;
+  technicien_email: string;
+  /** Id de l'événement dans l'agenda VDE maître (null tant que non synchronisé). */
+  google_event_id?: string | null;
+  sync: RdvSync;
+}
+
 /** Un lead — cœur du CRM (§2). */
 export interface Lead {
   id: string; // FB-XXX, incrémental, sans trou
@@ -312,6 +347,8 @@ export interface Lead {
   echeancier?: Echeance[] | null;
   /** Registre des encaissements — source de vérité du payé / reste. */
   reglements?: Reglement[] | null;
+  /** RDV d'installation confirmé (§Planning). Présent dès le passage « planifié ». */
+  rdv?: RdvInstall | null;
 
   prochaine_action?: string | null;
   date_relance?: string | null;

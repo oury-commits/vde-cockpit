@@ -3,16 +3,23 @@
 import { useState } from "react";
 import {
   CalendarClock,
+  CalendarX,
   CircleCheck,
   Clock,
   Lock,
+  Navigation,
   Receipt,
+  RefreshCw,
+  User,
   Wallet,
 } from "lucide-react";
-import type { Lead, ReglementMode } from "@/lib/types";
+import type { Lead, RdvType, ReglementMode } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { generateFacturePdf } from "@/lib/leads/facture";
 import { formatDate, formatMontant } from "@/lib/format";
+import { RdvDialog } from "@/components/leads/fiche/RdvDialog";
+import { adresseComplete, mapsLink, unsyncRdv } from "@/components/leads/fiche/rdvSync";
 import {
   MODE_REGLEMENT_LABEL,
   aEncaissement,
@@ -36,11 +43,23 @@ const ECHEANCE_LABEL: Record<string, string> = {
 
 const MODES: ReglementMode[] = ["virement", "cheque", "cb", "especes", "alma"];
 
+const RDV_TYPE_LABEL: Record<RdvType, string> = {
+  pose: "Pose",
+  visite_technique: "Visite technique",
+  sav: "SAV",
+};
+
+const heureFR = (iso: string) =>
+  new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
 export function PaiementsCard({ lead }: { lead: Lead }) {
   const store = useLeadsStore();
+  const { session, enabled } = useAuth();
+  const token = session?.access_token ?? null;
   const [montant, setMontant] = useState("");
   const [mode, setMode] = useState<ReglementMode>("virement");
   const [busy, setBusy] = useState(false);
+  const [rdvOpen, setRdvOpen] = useState(false);
 
   if (!lead.devis) return null;
 
@@ -56,7 +75,6 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
   const pct = solde ? 100 : du > 0 ? Math.min(100, Math.round((paye / du) * 100)) : 0;
 
   // Verrou RDV : « pas d'acompte, pas de RDV » (le passage à « planifié »).
-  const rdvConfirme = lead.statut === "planifie" || lead.statut === "installe";
   const rdvConfirmable = aEncaissement(lead);
   const signe = lead.devis.statut === "signe";
   const reglements = lead.reglements ?? [];
@@ -91,8 +109,23 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
     }
   };
 
-  const confirmerRdv = () => {
-    if (rdvConfirmable) store.changeStatut(lead.id, "planifie");
+  const rdv = lead.rdv ?? null;
+  // Dossier « planifié » hérité (seed / avant Bloc B) : statut posé mais aucun
+  // détail RDV — on propose de le poser pour synchroniser l'agenda.
+  const planifieSansDetail =
+    !rdv && (lead.statut === "planifie" || lead.statut === "installe");
+
+  const annulerRdv = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const eventId = lead.rdv?.google_event_id ?? null;
+      store.annulerRdv(lead.id);
+      // Suppression de l'événement Google si créé (best-effort, non bloquant).
+      if (enabled && token && eventId) await unsyncRdv(token, eventId);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -143,15 +176,81 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
         </p>
       ) : null}
 
-      {/* Verrou RDV : pas d'acompte, pas de RDV */}
-      {signe && !rdvConfirme ? (
+      {/* RDV d'installation : verrou acompte → pose → synchro agenda VDE */}
+      {rdv ? (
+        <div className="mt-3 rounded-xl border border-brand/25 bg-brand/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-brand">
+              <CalendarClock className="size-4" strokeWidth={2} />
+              RDV {RDV_TYPE_LABEL[rdv.type]}
+            </span>
+            {rdv.sync === "synchronise" ? (
+              <Badge tone="success">Agenda à jour</Badge>
+            ) : rdv.sync === "echec" ? (
+              <Badge tone="alert">Échec synchro</Badge>
+            ) : (
+              <Badge tone="gold">Agenda non synchronisé</Badge>
+            )}
+          </div>
+          <div className="mt-2 space-y-1 text-[13px]">
+            <p className="font-mono text-ink">
+              {formatDate(rdv.debut)} · {heureFR(rdv.debut)} – {heureFR(rdv.fin)}
+            </p>
+            <p className="flex items-center gap-1.5 text-muted">
+              <User className="size-3.5 shrink-0" strokeWidth={2} />
+              {rdv.technicien_nom}
+            </p>
+            {adresseComplete(lead) ? (
+              <a
+                href={mapsLink(adresseComplete(lead))}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-brand underline"
+              >
+                <Navigation className="size-3.5 shrink-0" strokeWidth={2} />
+                Y aller
+              </a>
+            ) : null}
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={RefreshCw}
+              onClick={() => setRdvOpen(true)}
+              disabled={busy}
+            >
+              Reprogrammer
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={CalendarX}
+              onClick={annulerRdv}
+              disabled={busy}
+            >
+              Annuler le RDV
+            </Button>
+          </div>
+        </div>
+      ) : planifieSansDetail ? (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand/25 bg-brand/5 px-3 py-2">
+          <span className="flex items-center gap-1.5 text-[13px] text-brand">
+            <CalendarClock className="size-4 shrink-0" strokeWidth={2} />
+            Dossier planifié — pose la date pour synchroniser l&apos;agenda.
+          </span>
+          <Button size="sm" onClick={() => setRdvOpen(true)}>
+            Poser le RDV
+          </Button>
+        </div>
+      ) : signe ? (
         rdvConfirmable ? (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand/25 bg-brand/5 px-3 py-2">
             <span className="flex items-center gap-1.5 text-[13px] text-brand">
-              <CalendarClock className="size-4" strokeWidth={2} />
+              <CalendarClock className="size-4 shrink-0" strokeWidth={2} />
               Acompte encaissé — RDV confirmable.
             </span>
-            <Button size="sm" onClick={confirmerRdv}>
+            <Button size="sm" onClick={() => setRdvOpen(true)}>
               Confirmer le RDV
             </Button>
           </div>
@@ -162,6 +261,8 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
           </p>
         )
       ) : null}
+
+      {rdvOpen ? <RdvDialog lead={lead} onClose={() => setRdvOpen(false)} /> : null}
 
       {/* Échéancier prévu */}
       {lead.echeancier && lead.echeancier.length > 0 && !soldeAlma ? (

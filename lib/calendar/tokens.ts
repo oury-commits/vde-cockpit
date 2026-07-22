@@ -94,6 +94,19 @@ export async function getAccessToken(userId: string): Promise<string | null> {
   return refreshed.access_token;
 }
 
+/**
+ * Agenda cible d'écriture des RDV : l'agenda principal du compte VDE connecté.
+ * Défaut « primary » (alias Google du calendrier principal) si la liste est vide.
+ * Modèle « agenda partagé » : un seul compte VDE maître porte tous les RDV.
+ */
+export async function getWriteCalendarId(userId: string): Promise<string> {
+  const db = admin();
+  if (!db) return "primary";
+  const r = await row(db, userId);
+  const primary = (r?.calendars ?? []).find((c) => c.primary);
+  return primary?.id ?? "primary";
+}
+
 export interface ConnexionStatut {
   connected: boolean;
   calendars: GoogleCalendar[];

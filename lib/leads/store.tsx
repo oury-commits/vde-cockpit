@@ -21,6 +21,9 @@ import type {
   Lead,
   ModeTva,
   MotifPerte,
+  RdvInstall,
+  RdvSync,
+  RdvType,
   Reglement,
   ReglementMode,
   Statut,
@@ -51,7 +54,7 @@ import { isSameContact } from "@/lib/leads/filters";
 import { MEMBRES, STATUT_META, isLeadProtege } from "@/lib/leads/meta";
 import { useIdentity } from "@/lib/roles/IdentityProvider";
 import { peutVoirEntite } from "@/lib/roles/permissions";
-import { formatDate, formatMontant } from "@/lib/format";
+import { formatDate, formatDateTime, formatMontant } from "@/lib/format";
 import { uid } from "@/lib/uid";
 import { getRepository, repositoryKind, seedState } from "@/lib/leads/repository";
 
@@ -95,6 +98,31 @@ interface StoreValue {
    * passage à « planifié » sans encaissement).
    */
   changeStatut: (id: string, statut: Statut, motif?: MotifPerte) => boolean;
+  /**
+   * Confirme (ou reprogramme) le RDV d'installation : capture date + technicien
+   * assigné et passe le lead à « planifié ». Même verrou que `changeStatut` —
+   * renvoie false si aucun acompte n'est encaissé. La synchro Google est un
+   * effet de bord séparé, best-effort (voir `setRdvSync`).
+   */
+  confirmerRdv: (
+    leadId: string,
+    input: {
+      type: RdvType;
+      debut: string;
+      fin: string;
+      technicien_id: string;
+      technicien_nom: string;
+      technicien_email: string;
+    },
+  ) => boolean;
+  /** Reporte l'état de synchro Google d'un RDV (id d'événement + statut). */
+  setRdvSync: (
+    leadId: string,
+    sync: RdvSync,
+    google_event_id?: string | null,
+  ) => void;
+  /** Annule le RDV : repasse le lead à « signé », efface le RDV, trace l'annulation. */
+  annulerRdv: (leadId: string) => void;
   addActivite: (leadId: string, type: ActiviteType, contenu: string) => void;
   /** Note typée (appel / email / visite / note) avec portée interne ou client. */
   addNote: (
@@ -494,6 +522,99 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     [leads, pushActivite],
   );
 
+  const confirmerRdv = useCallback<StoreValue["confirmerRdv"]>(
+    (leadId, input) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead) return false;
+      // Même verrou que changeStatut : « pas d'acompte, pas de RDV ».
+      if (!aEncaissement(lead)) return false;
+      const reprog = Boolean(lead.rdv);
+      const now = new Date().toISOString();
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                statut: "planifie",
+                statut_change_at: l.statut === "planifie" ? l.statut_change_at : now,
+                rdv: {
+                  type: input.type,
+                  debut: input.debut,
+                  fin: input.fin,
+                  technicien_id: input.technicien_id,
+                  technicien_nom: input.technicien_nom,
+                  technicien_email: input.technicien_email,
+                  // On conserve l'id d'événement en reprogrammation : l'appelant
+                  // fera un UPDATE (pas un doublon). Synchro remise à « à faire ».
+                  google_event_id: l.rdv?.google_event_id ?? null,
+                  sync: "non_synchronise",
+                },
+                updated_at: now,
+              }
+            : l,
+        ),
+      );
+      pushActivite(
+        leadId,
+        "rdv",
+        `RDV ${reprog ? "reprogrammé" : "posé"} pour ${input.technicien_nom} le ${formatDateTime(input.debut)}`,
+      );
+      return true;
+    },
+    [leads, pushActivite],
+  );
+
+  const setRdvSync = useCallback<StoreValue["setRdvSync"]>(
+    (leadId, sync, google_event_id) => {
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId && l.rdv
+            ? {
+                ...l,
+                rdv: {
+                  ...l.rdv,
+                  sync,
+                  google_event_id:
+                    google_event_id !== undefined
+                      ? google_event_id
+                      : l.rdv.google_event_id,
+                },
+              }
+            : l,
+        ),
+      );
+    },
+    [],
+  );
+
+  const annulerRdv = useCallback<StoreValue["annulerRdv"]>(
+    (leadId) => {
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead) return;
+      const now = new Date().toISOString();
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                // Retour à « signé » : devis signé + acompte encaissé, RDV à reposer.
+                statut: l.statut === "planifie" ? "signe" : l.statut,
+                rdv: null,
+                statut_change_at: now,
+                updated_at: now,
+              }
+            : l,
+        ),
+      );
+      pushActivite(
+        leadId,
+        "rdv",
+        `RDV annulé${lead.rdv ? ` (${lead.rdv.technicien_nom})` : ""}`,
+      );
+    },
+    [leads, pushActivite],
+  );
+
   const generateDevis = useCallback<StoreValue["generateDevis"]>(
     async (leadId, mode) => {
       const lead = leads.find((l) => l.id === leadId);
@@ -850,6 +971,9 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       deleteLeads,
       archiveLead,
       changeStatut,
+      confirmerRdv,
+      setRdvSync,
+      annulerRdv,
       addActivite: pushActivite,
       addNote,
       toggleJalon,
@@ -877,6 +1001,9 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       deleteLeads,
       archiveLead,
       changeStatut,
+      confirmerRdv,
+      setRdvSync,
+      annulerRdv,
       pushActivite,
       addNote,
       toggleJalon,
