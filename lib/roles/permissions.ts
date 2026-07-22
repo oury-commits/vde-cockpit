@@ -200,6 +200,20 @@ export function estSensible(cle: OverrideKey): boolean {
 }
 
 /**
+ * Pourquoi une personne voit (ou non) les montants : par son rôle, ou par une
+ * dérogation nominative. Sert à l'encart « Accès sensibles » de l'écran Équipe.
+ */
+export function raisonMontants(
+  role: Role | null,
+  overrides: Overrides | undefined,
+): { voit: boolean; par: "role" | "derogation" } {
+  const derog = overrides?.montants;
+  if (derog) return { voit: derog !== "none", par: "derogation" };
+  const parRole = !!role && role !== "conducteur_travaux" && role !== "technicien";
+  return { voit: parRole, par: "role" };
+}
+
+/**
  * Message de confirmation, ou null si l'accès ne mérite pas d'interruption.
  * Retirer un droit n'est jamais sensible : on ne fait pas confirmer une
  * restriction, seulement une ouverture.
