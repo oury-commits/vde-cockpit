@@ -27,19 +27,22 @@ export async function POST(request: Request) {
     );
   }
 
-  // 1. Vérifier que l'appelant est un ADMIN actif (jamais sur la seule foi du client).
+  // 1. Vérifier que l'appelant est un ADMIN actif — AVANT de toucher la clé
+  //    service. Le contrôle passe par le client RLS de l'utilisateur (son propre
+  //    token) : il ne lit que sa PROPRE ligne (policy profiles_select :
+  //    id = auth.uid()). La `service_role` n'est pas encore instanciée ici.
   const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 
   const asUser = createClient(url, anon, {
     global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false },
   });
   const { data: userData } = await asUser.auth.getUser();
   const uid = userData.user?.id;
   if (!uid) return NextResponse.json({ error: "Session invalide." }, { status: 401 });
 
-  const admin = createClient(url, service, { auth: { persistSession: false } });
-  const { data: moi } = await admin
+  const { data: moi } = await asUser
     .from("profiles")
     .select("role, actif")
     .eq("id", uid)
@@ -62,7 +65,10 @@ export async function POST(request: Request) {
   let entite = body.entite === "FR" || body.entite === "MA" || body.entite === "ALL" ? body.entite : null;
   if (entite === "ALL" && role !== "admin") entite = null; // ALL réservé à l'admin
 
-  // 3. Inviter l'utilisateur Auth (email d'invitation) → récupérer son uuid.
+  // 3. APPELANT ADMIN CONFIRMÉ : seulement maintenant on instancie la clé
+  //    service (contourne la RLS) pour inviter l'utilisateur Auth puis créer sa
+  //    ligne profiles avec le MÊME uuid.
+  const admin = createClient(url, service, { auth: { persistSession: false } });
   const { data: invited, error: inviteErr } =
     await admin.auth.admin.inviteUserByEmail(email);
   if (inviteErr || !invited?.user?.id) {

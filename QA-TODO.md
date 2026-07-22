@@ -173,6 +173,11 @@ mutation. Un compte FR ne lit ni ne dépose sous `MA/`, et inversement.
   `lib/roles/permissions.ts` (UI, confort d'affichage). Toute évolution se fait
   des deux côtés, sinon l'écran promet un accès que la base refuse. Un test qui
   compare les deux matrices colonne par colonne éviterait la dérive.
+- **Journal des accès côté serveur** : aujourd'hui le journal de l'écran Équipe
+  vit en `localStorage` (`vde.roles.journal.v1`). Suffisant pour une équipe de
+  2-4 (décision produit). Pour le rendre **inviolable**, le passer sur une table
+  dédiée (`access_log`) avec RLS lecture admin + écriture par trigger/route
+  serveur. Non bloquant.
 
 ---
 
