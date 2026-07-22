@@ -72,16 +72,53 @@ export interface Profile {
   id: string;
   email: string;
   nom: string;
+  telephone?: string | null;
   role: Role | null;
   entite: EntiteAcces | null;
   actif: boolean;
   overrides: Overrides;
   /** Compte de démonstration — jamais un vrai salarié. */
   demo: boolean;
+  /**
+   * Horodatage de l'invitation envoyée. Renseigné → « invitation en attente »
+   * tant que `derniere_connexion` est null. Les comptes de démo l'ont à null.
+   */
+  invite_le?: string | null;
+  /** Dernière connexion (auth réelle) ; null tant que jamais connecté → « — ». */
+  derniere_connexion?: string | null;
   /** Traçabilité des droits : qui a modifié, et quand. */
   modifie_par: string | null;
   modifie_le: string | null;
   created_at: string;
+}
+
+/** Un membre invité mais pas encore connecté (invitation en attente). */
+export function estInviteEnAttente(p: Profile): boolean {
+  return Boolean(p.invite_le) && !p.derniere_connexion && p.actif;
+}
+
+/** Nature d'une entrée du journal des accès. */
+export type AccessAction =
+  | "creation"
+  | "role"
+  | "entite"
+  | "override"
+  | "activation"
+  | "suppression";
+
+/**
+ * Entrée du journal des accès : toute création / changement de rôle / dérogation
+ * / (dés)activation / suppression, horodatée et attribuée. Rien d'anonyme.
+ */
+export interface AccessLogEntry {
+  id: string;
+  at: string;
+  auteur: string;
+  action: AccessAction;
+  /** Personne concernée (nom). */
+  cible: string;
+  /** Détail lisible : « rôle : technicien → chargé d'affaires ». */
+  detail: string;
 }
 
 /** Identité dérivée d'un profil — le profil est la source de vérité. */
