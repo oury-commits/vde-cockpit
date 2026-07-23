@@ -1,6 +1,6 @@
 -- ============================================================================
 --  VDE Cockpit — Bootstrap Supabase PROD (schéma complet, idempotent).
---  Consolide les migrations 0001 + 0004 → 0020, dans l'ordre.
+--  Consolide les migrations 0001 + 0004 → 0021, dans l'ordre.
 --
 --  EXCLUS volontairement :
 --    · supabase/dev-only/0002_dev_open_access.sql (accès anon de dev) ;
@@ -45,8 +45,10 @@ exception when duplicate_object then null; end $$;
 
 do $$ begin create type activite_type as enum (
   'import','creation','appel','whatsapp','email','visite',
-  'note','devis','relance','statut','signature','paiement');
+  'note','devis','relance','statut','signature','paiement','rdv');
 exception when duplicate_object then null; end $$;
+-- Base existante (enum déjà créé sans 'rdv') : on l'ajoute (idempotent). Voir 0021.
+alter type activite_type add value if not exists 'rdv';
 
 create table if not exists leads (
   id                  text primary key,

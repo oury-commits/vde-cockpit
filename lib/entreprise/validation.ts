@@ -1,5 +1,5 @@
 // Validation des formats PAR PAYS — empêche la fausse info dès la saisie
-// (SIRET FR à 12 chiffres, IBAN sans FR76, ICE MA à 14 chiffres…). Un format
+// (SIRET FR = 14 chiffres, IBAN FR76, ICE MA = 15 chiffres…). Un format
 // invalide bloque l'enregistrement. Volontairement tolérant aux espaces.
 
 import type { ParametresEntreprise } from "@/lib/entreprise/types";
