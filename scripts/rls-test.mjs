@@ -227,11 +227,43 @@ verifie("chargé d'affaires FR voit 2 traces", (await nb(U.caFr, "select * from 
 verifie("chargé d'affaires MA voit 1 trace",  (await nb(U.caMa, "select * from activites")) === 1);
 verifie("conducteur de travaux voit 0 trace", (await nb(U.condFr, "select * from activites")) === 0);
 {
-  const u = await commeUtilisateur(U.caFr, "update activites set contenu = 'réécrit'");
-  verifie("aucune policy UPDATE : une trace ne se réécrit pas",
-    u.ok === true && u.count === 0);
-  const i = await commeUtilisateur(U.caMa, "insert into activites (lead_id, type, contenu) values ('FR-2','note','intrusion')");
-  verifie("impossible d'écrire une trace sur un dossier hors périmètre", i.ok === false);
+  // Insert d'une trace sur SON entité (chemin nominal).
+  const iAdmin = await commeUtilisateur(U.admin, "insert into activites (lead_id, type, contenu) values ('FR-1','note','ajout admin')");
+  verifie("admin : insert d'une trace", iAdmin.ok === true && iAdmin.count === 1);
+  const iCaFr = await commeUtilisateur(U.caFr, "insert into activites (lead_id, type, contenu) values ('FR-1','note','relance CA FR')");
+  verifie("chargé d'affaires FR : insert d'une trace sur son entité", iCaFr.ok === true && iCaFr.count === 1);
+
+  // Le CHEMIN RÉEL de l'app : upsert du tableau complet
+  // (INSERT ... ON CONFLICT (id) DO UPDATE). Avant 0025, la branche UPDATE de
+  // l'upsert était refusée (« USING expression ») faute de policy UPDATE :
+  // c'était l'angle mort (un UPDATE nu filtrait 0 ligne sans erreur → faux vert).
+  const idFr = (await db.query("select id from activites where lead_id='FR-1' limit 1")).rows[0].id;
+  const upAdmin = await commeUtilisateur(U.admin,
+    `insert into activites (id, lead_id, type, contenu, auteur)
+     values ('${idFr}','FR-1','note','maj','Admin')
+     on conflict (id) do update set contenu = excluded.contenu`);
+  verifie("admin : upsert de la timeline (ON CONFLICT DO UPDATE) passe",
+    upAdmin.ok === true, upAdmin.erreur?.slice(0, 50));
+  const upCaFr = await commeUtilisateur(U.caFr,
+    `insert into activites (id, lead_id, type, contenu, auteur)
+     values ('${idFr}','FR-1','note','maj CA FR','F')
+     on conflict (id) do update set contenu = excluded.contenu`);
+  verifie("chargé d'affaires FR : upsert sur son entité passe",
+    upCaFr.ok === true, upCaFr.erreur?.slice(0, 50));
+
+  // Cloisonnement d'écriture préservé : insert cross-entité refusé bruyamment.
+  const iCross = await commeUtilisateur(U.caMa, "insert into activites (lead_id, type, contenu) values ('FR-2','note','intrusion')");
+  verifie("insert d'une trace sur un dossier hors périmètre : refus", iCross.ok === false);
+  // …et par upsert aussi (CA MA tente d'éditer une trace d'un dossier FR).
+  const upCross = await commeUtilisateur(U.caMa,
+    `insert into activites (id, lead_id, type, contenu, auteur)
+     values ('${idFr}','FR-1','note','intrusion','M')
+     on conflict (id) do update set contenu = excluded.contenu`);
+  verifie("upsert cross-entité (CA MA → dossier FR) : refus", upCross.ok === false);
+  // Un UPDATE scopé ne déborde jamais : le CA FR ne touche pas une trace MA.
+  const upScope = await commeUtilisateur(U.caFr, "update activites set contenu = 'corrigé' where lead_id = 'MA-1'");
+  verifie("update scopé : le CA FR ne touche aucune trace MA (0 ligne)",
+    upScope.ok === true && upScope.count === 0);
 }
 
 console.log("\n=== 5. CATALOGUE (coûts d'achat) ===");

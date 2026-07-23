@@ -1,6 +1,8 @@
 -- ============================================================================
 --  VDE Cockpit — Bootstrap Supabase PROD (schéma complet, idempotent).
---  Consolide les migrations 0001 + 0004 → 0022, dans l'ordre.
+--  Consolide les migrations 0001 + 0004 → 0022, plus 0025 (fix RLS activites).
+--  NB : 0023 (modèles d'emails) et 0024 (catalogue solaire) vivent sur leurs
+--  branches dédiées et fusionnent à part — à réconcilier ici au merge.
 --
 --  EXCLUS volontairement :
 --    · supabase/dev-only/0002_dev_open_access.sql (accès anon de dev) ;
@@ -522,6 +524,16 @@ create policy activites_insert on public.activites
   for insert to authenticated
   with check (public.app_voit_lead(lead_id));
 
+-- 0025 — policy UPDATE : l'app persiste la timeline par upsert du tableau complet
+-- (INSERT ... ON CONFLICT DO UPDATE) ; sans policy UPDATE, la branche UPDATE de
+-- l'upsert est refusée (« USING expression »). Scopée par le lead (miroir de leads).
+-- Pas de DELETE : une trace ne s'efface pas (l'upsert n'efface jamais).
+drop policy if exists activites_update on public.activites;
+create policy activites_update on public.activites
+  for update to authenticated
+  using (public.app_voit_lead(lead_id))
+  with check (public.app_voit_lead(lead_id));
+
 -- 6. catalogue — contient les coûts d'achat.
 alter table public.catalogue enable row level security;
 
@@ -684,6 +696,10 @@ create policy interventions_delete on public.interventions
   );
 
 -- 10. chantiers — vue « terrain sans montants » (rôles aveugles aux prix).
+--     0022 (plus bas) rajoute les colonnes rdv_* (superset). Sur re-run, la vue
+--     existante porte déjà ces colonnes : un « create or replace » sur la version
+--     de base échouerait (« cannot drop columns »). On la dépose d'abord.
+drop view if exists public.chantiers;
 create or replace view public.chantiers
 with (security_invoker = off) as
   select
