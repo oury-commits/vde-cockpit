@@ -10,6 +10,8 @@ export function StepClient() {
   const c = draft.client;
   const okCount = controle.filter((p) => p.conforme).length;
   const conforme = okCount === controle.length;
+  // Le contrôle technique /6 est un barème IRVE : masqué pour un devis solaire.
+  const showControle = draft.domaine !== "solaire";
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,6 +58,7 @@ export function StepClient() {
         </div>
       </section>
 
+      {showControle ? (
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -124,6 +127,7 @@ export function StepClient() {
         </p>
         {/* TODO: brancher données réelles — barème de protections VDE à valider. */}
       </section>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 -- ============================================================================
 --  VDE Cockpit — Bootstrap Supabase PROD (schéma complet, idempotent).
---  Consolide les migrations 0001 + 0004 → 0022, dans l'ordre.
+--  Consolide les migrations 0001 + 0004 → 0022, plus 0024 (catalogue solaire).
+--  NB : 0023 (modèles d'emails) vit sur sa branche dédiée et fusionne à part —
+--  à réconcilier ici au merge (les sections sont disjointes).
 --
 --  EXCLUS volontairement :
 --    · supabase/dev-only/0002_dev_open_access.sql (accès anon de dev) ;
@@ -154,9 +156,27 @@ alter table leads add column if not exists facture jsonb;
 --  0006 — Catalogue de prix.
 -- ============================================================================
 do $$ begin create type categorie_article as enum
-  ('borne','pose','tableau','terre','option','consommable','deplacement');
+  ('borne','pose','tableau','terre','option','consommable','deplacement',
+   -- Catégories solaires (0024). Ajoutées à la création pour une base neuve ;
+   -- les « add value » ci-dessous rattrapent une base existante (idempotent).
+   'panneau','onduleur','ems','structure_pv','protection_pv','etude',
+   'administratif','batterie','maintenance');
 exception when duplicate_object then null; end $$;
+-- Base existante (enum déjà créé sans le solaire) : on ajoute les valeurs. Non
+-- utilisées dans CETTE transaction (le seed solaire est côté app), donc sûr.
+alter type categorie_article add value if not exists 'panneau';
+alter type categorie_article add value if not exists 'onduleur';
+alter type categorie_article add value if not exists 'ems';
+alter type categorie_article add value if not exists 'structure_pv';
+alter type categorie_article add value if not exists 'protection_pv';
+alter type categorie_article add value if not exists 'etude';
+alter type categorie_article add value if not exists 'administratif';
+alter type categorie_article add value if not exists 'batterie';
+alter type categorie_article add value if not exists 'maintenance';
 do $$ begin create type unite_article as enum ('u','forfait','m');
+exception when duplicate_object then null; end $$;
+-- Domaine de l'article (0024) : sépare l'IRVE (existant) du solaire (nouveau).
+do $$ begin create type domaine_article as enum ('irve','solaire');
 exception when duplicate_object then null; end $$;
 
 create table if not exists catalogue (
@@ -188,6 +208,16 @@ alter table catalogue enable row level security;
 --  0007 — Prix Maroc surchargeable.
 -- ============================================================================
 alter table catalogue add column if not exists cout_ma numeric;
+
+-- ============================================================================
+--  0024 — Catalogue solaire : domaine + puissance unitaire (watt-crête).
+--  Additif ; le domaine par défaut 'irve' laisse l'existant intact. Le seed
+--  des articles solaires est côté application (buildCatalogueSeed), comme l'IRVE.
+-- ============================================================================
+alter table catalogue
+  add column if not exists domaine      domaine_article not null default 'irve',
+  add column if not exists puissance_wc numeric;
+create index if not exists catalogue_domaine_idx on catalogue (domaine);
 
 -- ============================================================================
 --  0008 — Séquences (numérotation atomique). La fonction next_sequence et sa
@@ -684,6 +714,10 @@ create policy interventions_delete on public.interventions
   );
 
 -- 10. chantiers — vue « terrain sans montants » (rôles aveugles aux prix).
+--     0022 (plus bas) rajoute les colonnes rdv_* (superset). Sur re-run, la vue
+--     existante porte déjà ces colonnes : un « create or replace » sur la version
+--     de base échouerait (« cannot drop columns »). On la dépose d'abord.
+drop view if exists public.chantiers;
 create or replace view public.chantiers
 with (security_invoker = off) as
   select

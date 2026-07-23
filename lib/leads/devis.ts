@@ -5,6 +5,7 @@ import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { QR_LABEL, qrDataUrl } from "@/lib/devis/qr";
 import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
 import { pctTva, ventilationDe } from "@/lib/devis/tva";
+import { mentionsSolaire } from "@/lib/devis/solaire";
 import { almaPhrase } from "@/lib/leads/reglements";
 import { buildLignes } from "@/lib/leads/pricing";
 import type { ParametresEntreprise } from "@/lib/entreprise/types";
@@ -130,7 +131,11 @@ async function buildDevisDoc(
   doc.text(raisonSociale(fiche ?? null, devis.entite), nomX, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text("IRVE résidentiel", nomX, 21);
+  doc.text(
+    devis.domaine === "solaire" ? "Photovoltaïque résidentiel" : "IRVE résidentiel",
+    nomX,
+    21,
+  );
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text(devis.ref, pageW - mx, 15, { align: "right" });
@@ -321,6 +326,23 @@ async function buildDevisDoc(
   if (opt.mention) {
     doc.text(opt.mention, mx, y);
     y += 4;
+  }
+  // Mentions solaire OBLIGATOIRES / différenciantes (taux TVA + critères,
+  // rétractation 14 j, garanties, autoconsommation…). Lignes longues → on les
+  // enveloppe à la largeur utile et on pagine si le bas de page approche.
+  if (devis.domaine === "solaire" && devis.pv) {
+    for (const line of mentionsSolaire(devis.pv, devis.pv.puissance_kwc, devis.taux_tva)) {
+      for (const wrapped of doc.splitTextToSize(line, pageW - 2 * mx) as string[]) {
+        if (y > 285) {
+          doc.addPage();
+          y = 20;
+          doc.setTextColor(...MUTED);
+          doc.setFontSize(8);
+        }
+        doc.text(wrapped, mx, y);
+        y += 4;
+      }
+    }
   }
   // Identité légale + RIB + assurance + certifs — STRICTEMENT de l'entité du devis.
   for (const line of mentionsEntreprise(fiche ?? null, devis.entite)) {

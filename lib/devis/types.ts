@@ -6,13 +6,36 @@ import type { CategorieArticle, Unite } from "@/lib/catalogue/types";
 // prix (snapshot) pour que l'édition ultérieure du catalogue ne bouge pas un
 // devis déjà émis.
 
-/** Deux modes d'entrée : forfait guidé ou accès complet au catalogue. */
-export type ModeDevis = "standard" | "libre";
+/** Modes d'entrée : forfait IRVE guidé, catalogue libre, ou solaire (PV). */
+export type ModeDevis = "standard" | "libre" | "solaire";
 
 export const MODE_DEVIS_LABEL: Record<ModeDevis, string> = {
   standard: "Forfait Standard IRVE",
   libre: "Devis Libre",
+  solaire: "Solaire — photovoltaïque",
 };
+
+/** Domaine du devis : IRVE (standard/libre) ou solaire. */
+export type DomaineDevis = "irve" | "solaire";
+
+/** Type de projet solaire — oriente le dimensionnement (EMS, batterie). Le
+ *  rachat du surplus ≈ 0 en 2026 → autoconsommation par défaut. */
+export type Autoconsommation = "totale" | "avec_surplus";
+
+/** Volet solaire du devis (ignoré pour un devis IRVE). */
+export interface DevisPv {
+  autoconsommation: Autoconsommation;
+  /**
+   * Modules conformes (attestation ACV/PEP fournisseur : empreinte carbone,
+   * argent, plomb, cadmium). Précondition de la TVA 5,5 %.
+   */
+  modules_conformes: boolean;
+  /**
+   * Case « TVA 5,5 % » cochée par le vendeur. N'a d'effet QUE si les critères
+   * cumulatifs sont réunis (≤ 9 kWc + EMS + modules conformes) — sinon 20 %.
+   */
+  tva_reduite: boolean;
+}
 
 /** Ligne de devis dérivée (prix figés au moment du calcul). */
 export interface DevisLigne {
@@ -116,6 +139,10 @@ export interface DevisDraft {
   entite: Entite;
   lead_id: string | null;
   mode: ModeDevis;
+  /** IRVE ou solaire — dérivé du mode, mais figé pour la dérivation/PDF. */
+  domaine: DomaineDevis;
+  /** Volet solaire (présent uniquement en domaine solaire). */
+  pv: DevisPv;
   client: DevisClient;
   /** Clés du contrôle marquées non conformes (les autres sont OK). */
   controle_non_conformes: ControleKey[];
@@ -164,4 +191,20 @@ export const WIZARD_STEPS = [
   { key: "synthese", label: "Synthèse" },
 ] as const;
 
-export type StepKey = (typeof WIZARD_STEPS)[number]["key"];
+/** Parcours solaire : pas de config/contrôle IRVE — sélection PV puis synthèse. */
+export const WIZARD_STEPS_SOLAIRE = [
+  { key: "client", label: "Client" },
+  { key: "solaire", label: "Installation solaire" },
+  { key: "synthese", label: "Synthèse" },
+] as const;
+
+export type StepKey =
+  | (typeof WIZARD_STEPS)[number]["key"]
+  | (typeof WIZARD_STEPS_SOLAIRE)[number]["key"];
+
+/** Étapes du wizard selon le mode (IRVE ou solaire). */
+export function stepsFor(
+  mode: ModeDevis,
+): readonly { key: string; label: string }[] {
+  return mode === "solaire" ? WIZARD_STEPS_SOLAIRE : WIZARD_STEPS;
+}

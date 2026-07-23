@@ -5,12 +5,15 @@ import type { Entite } from "@/lib/types";
 import type {
   CatalogueArticle,
   CategorieArticle,
+  DomaineArticle,
   Unite,
 } from "@/lib/catalogue/types";
 import { useCatalogueStore } from "@/lib/catalogue/store";
 import {
   CATEGORIE_LABEL,
   CATEGORIE_ORDER,
+  CATEGORIE_ORDER_SOLAIRE,
+  DOMAINE_LABEL,
   UNITE_LABEL,
 } from "@/lib/catalogue/meta";
 import { arrondiMad } from "@/lib/catalogue/prix";
@@ -19,13 +22,21 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
 const UNITES: Unite[] = ["u", "forfait", "m"];
+const DOMAINES: DomaineArticle[] = ["irve", "solaire"];
+
+/** Catégories proposées selon le domaine (la pose est offerte dans les deux). */
+function categoriesFor(domaine: DomaineArticle): CategorieArticle[] {
+  return domaine === "solaire" ? CATEGORIE_ORDER_SOLAIRE : CATEGORIE_ORDER;
+}
 
 interface FormState {
   designation: string;
+  domaine: DomaineArticle;
   categorie: CategorieArticle;
   unite: Unite;
   cout_ht: string; // EUR (base)
   cout_ma: string; // MAD override (vide = dérivé)
+  puissance_wc: string; // Wc (panneaux) — vide = null
   url_produit: string;
   afficher_qr: boolean;
   a_confirmer: boolean;
@@ -37,10 +48,12 @@ interface FormState {
 function initial(article: CatalogueArticle | null | undefined): FormState {
   return {
     designation: article?.designation ?? "",
+    domaine: article?.domaine ?? "irve",
     categorie: article?.categorie ?? "borne",
     unite: article?.unite ?? "u",
     cout_ht: article ? String(article.cout_ht) : "",
     cout_ma: article?.cout_ma != null ? String(article.cout_ma) : "",
+    puissance_wc: article?.puissance_wc != null ? String(article.puissance_wc) : "",
     url_produit: article?.url_produit ?? "",
     afficher_qr: article?.afficher_qr ?? false,
     a_confirmer: article?.a_confirmer ?? false,
@@ -80,20 +93,26 @@ export function ArticleDialog({
 
   const cout = Number(form.cout_ht.replace(",", "."));
   const coutMa = form.cout_ma.trim() === "" ? null : Number(form.cout_ma.replace(",", "."));
+  const estPanneau = form.categorie === "panneau";
+  const pw = form.puissance_wc.trim() === "" ? null : Number(form.puissance_wc.replace(",", "."));
   const valid =
     form.designation.trim().length > 0 &&
     Number.isFinite(cout) &&
-    (coutMa === null || Number.isFinite(coutMa));
+    (coutMa === null || Number.isFinite(coutMa)) &&
+    (pw === null || Number.isFinite(pw));
   const derivedMa = Number.isFinite(cout) ? arrondiMad(cout * tauxMad) : 0;
 
   const submit = () => {
     if (!valid) return;
     const payload = {
       designation: form.designation.trim(),
+      domaine: form.domaine,
       categorie: form.categorie,
       unite: form.unite,
       cout_ht: cout,
       cout_ma: coutMa,
+      // La puissance Wc n'a de sens que pour un panneau (sert au calcul kWc).
+      puissance_wc: estPanneau ? pw : null,
       url_produit: form.url_produit.trim() || null,
       // Le QR ne vaut que pour une borne (règle métier) — on ne stocke pas un
       // drapeau trompeur sur les autres catégories.
@@ -149,6 +168,34 @@ export function ArticleDialog({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
+            <label className={LABEL} htmlFor="art-domaine">
+              Domaine
+            </label>
+            <select
+              id="art-domaine"
+              className={FIELD}
+              value={form.domaine}
+              onChange={(e) => {
+                const domaine = e.target.value as DomaineArticle;
+                // Recale la catégorie sur le domaine choisi si elle n'y est plus.
+                setForm((f) => {
+                  const cats = categoriesFor(domaine);
+                  return {
+                    ...f,
+                    domaine,
+                    categorie: cats.includes(f.categorie) ? f.categorie : cats[0],
+                  };
+                });
+              }}
+            >
+              {DOMAINES.map((d) => (
+                <option key={d} value={d}>
+                  {DOMAINE_LABEL[d]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className={LABEL} htmlFor="art-categorie">
               Catégorie
             </label>
@@ -160,13 +207,16 @@ export function ArticleDialog({
                 set("categorie", e.target.value as CategorieArticle)
               }
             >
-              {CATEGORIE_ORDER.map((c) => (
+              {categoriesFor(form.domaine).map((c) => (
                 <option key={c} value={c}>
                   {CATEGORIE_LABEL[c]}
                 </option>
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={LABEL} htmlFor="art-unite">
               Unité
@@ -184,6 +234,24 @@ export function ArticleDialog({
               ))}
             </select>
           </div>
+          {estPanneau ? (
+            <div>
+              <label className={LABEL} htmlFor="art-wc">
+                Puissance unitaire (Wc)
+              </label>
+              <input
+                id="art-wc"
+                inputMode="decimal"
+                className={`${FIELD} font-mono`}
+                value={form.puissance_wc}
+                onChange={(e) => set("puissance_wc", e.target.value)}
+                placeholder="630"
+              />
+              <span className="mt-1 block text-[11px] text-muted">
+                Sert au calcul des kWc (garde-fou TVA 5,5 %).
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-2 gap-3">

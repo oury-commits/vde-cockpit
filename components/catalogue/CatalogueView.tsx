@@ -10,9 +10,10 @@ import { useSettings } from "@/lib/settings/store";
 import { prixInfo } from "@/lib/catalogue/prix";
 import {
   CATEGORIE_LABEL,
-  CATEGORIE_ORDER,
+  CATEGORIE_ORDER_ALL,
   UNITE_LABEL,
 } from "@/lib/catalogue/meta";
+import type { DomaineArticle } from "@/lib/catalogue/types";
 import { entiteConfig } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
 import { PageTitle } from "@/components/ui/PageTitle";
@@ -51,6 +52,11 @@ function ArticleRow({
         <span className="text-sm text-ink sm:truncate">
           {article.designation}
         </span>
+        {article.domaine === "solaire" ? (
+          <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+            solaire
+          </span>
+        ) : null}
         {article.a_confirmer ? (
           <span className="rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-semibold text-gold-ink">
             à confirmer
@@ -112,6 +118,7 @@ export function CatalogueView() {
   const { active } = useEntity();
   const { tauxMad } = useSettings();
   const [search, setSearch] = useState("");
+  const [dom, setDom] = useState<"all" | DomaineArticle>("all");
   const [editing, setEditing] = useState<CatalogueArticle | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -122,14 +129,16 @@ export function CatalogueView() {
 
   const filtered = useMemo(() => {
     const q = norm(search.trim());
-    return q
-      ? entityArticles.filter((a) => norm(a.designation).includes(q))
-      : entityArticles;
-  }, [entityArticles, search]);
+    return entityArticles.filter(
+      (a) =>
+        (dom === "all" || a.domaine === dom) &&
+        (!q || norm(a.designation).includes(q)),
+    );
+  }, [entityArticles, search, dom]);
 
   const byCategory = useMemo(
     () =>
-      CATEGORIE_ORDER.map((cat) => ({
+      CATEGORIE_ORDER_ALL.map((cat) => ({
         cat,
         items: filtered.filter((a) => a.categorie === cat),
       })).filter((g) => g.items.length > 0),
@@ -180,6 +189,31 @@ export function CatalogueView() {
           placeholder="Rechercher un article…"
           className="h-10 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-brand/30 focus:outline-none focus:ring-2 focus:ring-brand/15"
         />
+      </div>
+
+      {/* Filtre domaine : IRVE (bornes) / Solaire (photovoltaïque). */}
+      <div className="flex items-center gap-1.5">
+        {(
+          [
+            { v: "all", label: "Tous" },
+            { v: "irve", label: "IRVE" },
+            { v: "solaire", label: "Solaire" },
+          ] as const
+        ).map((o) => (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => setDom(o.v)}
+            className={cn(
+              "rounded-full px-3 py-1 text-[12px] font-semibold transition-colors",
+              dom === o.v
+                ? "bg-brand text-cream"
+                : "bg-cream text-muted hover:text-ink",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
 
       {entityArticles.length === 0 ? (

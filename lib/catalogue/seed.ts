@@ -1,6 +1,7 @@
 import type {
   CatalogueArticle,
   CategorieArticle,
+  DomaineArticle,
   Unite,
 } from "@/lib/catalogue/types";
 
@@ -17,6 +18,10 @@ interface Opts {
    * l'épingle quand on veut caler un coût FR SANS bouger le prix marocain.
    */
   cout_ma?: number | null;
+  /** Domaine métier (défaut IRVE). Le solaire est seedé en fin de liste. */
+  domaine?: DomaineArticle;
+  /** Puissance unitaire watt-crête (panneaux uniquement). */
+  puissance_wc?: number | null;
 }
 
 export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
@@ -32,11 +37,13 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
     id: `CAT-${String(++n).padStart(3, "0")}`,
     designation,
     categorie,
+    domaine: o.domaine ?? "irve",
     unite,
     cout_ht,
     cout_ma: o.cout_ma ?? null, // MA dérivé du taux, sauf surcharge explicite
     url_produit: null, // TODO: brancher données réelles — fiches produit du site VDE
     afficher_qr: false,
+    puissance_wc: o.puissance_wc ?? null,
     entite: "FR",
     actif: true,
     a_confirmer: o.a_confirmer ?? false,
@@ -45,6 +52,21 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
     created_at: ts,
     updated_at: ts,
   });
+
+  // Raccourci solaire : domaine 'solaire' + « à confirmer » par défaut (prix
+  // indicatifs, Oury cale au catalogue). `puissance_wc` porté par les panneaux.
+  const sol = (
+    designation: string,
+    categorie: CategorieArticle,
+    unite: Unite,
+    cout_ht: number,
+    o: Opts = {},
+  ): CatalogueArticle =>
+    art(designation, categorie, unite, cout_ht, {
+      domaine: "solaire",
+      a_confirmer: true,
+      ...o,
+    });
 
   return [
     // ── Bornes (sûr) ──
@@ -114,5 +136,48 @@ export function buildCatalogueSeed(now: Date): CatalogueArticle[] {
     // ── Frais de déplacement (à confirmer) ──
     art("Déplacement 30-60 km", "deplacement", "forfait", 60, { a_confirmer: true }),
     art("Déplacement 60-100 km", "deplacement", "forfait", 120, { a_confirmer: true }),
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  SOLAIRE — photovoltaïque résidentiel (entité FR). Prix indicatifs marché
+    //  2026, TOUS marqués « à confirmer » : Oury cale au catalogue. Marché 2026 :
+    //  aucune aide (prime supprimée), rachat surplus ≈ 0 → l'offre = AUTOCONSO,
+    //  d'où EMS + batterie centraux. Marge 45 % appliquée au devis (cout / 0,55).
+    //  TODO: brancher données réelles — valider prix + fiches produit fournisseur.
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ── Panneaux (puissance_wc → somme kWc du devis, garde-fou TVA 5,5 %) ──
+    sol("Panneau Jinko Tiger Neo 630W bifacial", "panneau", "u", 81.54, { puissance_wc: 630 }),
+    sol("Panneau standard 500W", "panneau", "u", 60, { puissance_wc: 500 }),
+
+    // ── Onduleurs ──
+    sol("Onduleur Huawei SUN2000-3KTL (3 kW mono)", "onduleur", "u", 550),
+    sol("Onduleur Huawei SUN2000-5KTL (5 kW mono)", "onduleur", "u", 720),
+    sol("Onduleur Huawei SUN2000-6KTL (6 kW mono)", "onduleur", "u", 820),
+    sol("Onduleur Huawei SUN2000-8KTL (8 kW mono)", "onduleur", "u", 950),
+    sol("Micro-onduleur Enphase IQ8P (par panneau)", "onduleur", "u", 100),
+
+    // ── Gestionnaire d'énergie (EMS) — OBLIGATOIRE pour la TVA 5,5 % ──
+    sol("Gestionnaire d'énergie / EMS (Huawei Smart Dongle + Power Sensor)", "ems", "u", 180),
+
+    // ── Batterie (option clé : le surplus ne rapporte plus rien) ──
+    sol("Batterie de stockage Huawei LUNA 5 kWh", "batterie", "u", 2200),
+
+    // ── Structure & protection ──
+    sol("Système de fixation (rail + crochets) — par panneau", "structure_pv", "u", 30),
+    sol("Coffret de protection AC/DC (parafoudre, sectionneur DC)", "protection_pv", "forfait", 280),
+    sol("Câblage solaire + connecteurs MC4", "protection_pv", "forfait", 150),
+
+    // ── Pose (par kWc) — domaine solaire, distincte des poses IRVE ──
+    sol("Pose & mise en service — par kWc", "pose", "u", 450),
+
+    // ── Études ──
+    sol("Étude technique & simulation de production (PVGIS)", "etude", "forfait", 150),
+    sol("Étude de structure / note de calcul toiture", "etude", "forfait", 250),
+
+    // ── Démarches (Consuel, convention autoconso Enedis, DP mairie) ──
+    sol("Démarches administratives (DP mairie, Enedis, Consuel, convention)", "administratif", "forfait", 350),
+
+    // ── Maintenance (option — revenu récurrent, pas d'abonnement construit) ──
+    sol("Contrat de maintenance annuel — par an", "maintenance", "forfait", 90),
   ];
 }

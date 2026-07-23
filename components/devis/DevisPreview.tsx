@@ -68,8 +68,9 @@ export function DevisPreview() {
 
         {lignes.length === 0 ? (
           <p className="mt-6 rounded-lg border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
-            Sélectionnez une borne et une pose à l'étape « Configuration » pour
-            voir le devis se construire.
+            {draft.domaine === "solaire"
+              ? "Choisissez un point de départ (~3/6/9 kWc) ou cochez des articles à l'étape « Installation solaire » pour voir le devis se construire."
+              : "Sélectionnez une borne et une pose à l'étape « Configuration » pour voir le devis se construire."}
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-line">

@@ -8,12 +8,15 @@ import { entiteConfig } from "@/lib/entite/config";
 import { formatMontant } from "@/lib/format";
 import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import { MARGE_MAX, SEUIL_MARGE_ALERTE, margeNiveau } from "@/lib/devis/pricing";
+import { pvEligibilite } from "@/lib/devis/solaire";
 import { almaPhrase } from "@/lib/leads/reglements";
+import { pctTva } from "@/lib/devis/tva";
 import type { ModePaiement } from "@/lib/devis/types";
 
 export function StepSynthese() {
   const {
     draft,
+    articles,
     totaux,
     patch,
     lignes,
@@ -24,6 +27,8 @@ export function StepSynthese() {
     removeLigneLibre,
   } = useWizard();
   const cfgEntite = entiteConfig(draft.entite);
+  const solaire = draft.domaine === "solaire";
+  const pvElig = solaire ? pvEligibilite(draft, articles) : null;
   const devise = cfgEntite.devise;
   const m = (n: number) => formatMontant(n, devise, { cents: true });
 
@@ -62,14 +67,23 @@ export function StepSynthese() {
           <Field
             label="Régime de TVA"
             hint={
-              draft.entite === "MA"
-                ? "Maroc : 20 % (figé)."
-                : draft.mode_tva === "fr_autoliquidation"
-                  ? "Tout le devis à 0 % — TVA due par le preneur."
-                  : "Taux choisi par ligne dans l'aperçu (défaut 5,5 %)."
+              solaire
+                ? "Piloté à l'étape Installation solaire (≤ 9 kWc + EMS + modules conformes)."
+                : draft.entite === "MA"
+                  ? "Maroc : 20 % (figé)."
+                  : draft.mode_tva === "fr_autoliquidation"
+                    ? "Tout le devis à 0 % — TVA due par le preneur."
+                    : "Taux choisi par ligne dans l'aperçu (défaut 5,5 %)."
             }
           >
-            {draft.entite === "MA" ? (
+            {solaire ? (
+              <div className="flex h-9 items-center rounded-lg border border-line bg-cream/50 px-3 text-sm text-ink">
+                {pctTva(pvElig!.taux)}
+                <span className="ml-2 text-muted">
+                  {pvElig!.taux === 0.055 ? "— réduite (éligible)" : "— plein"}
+                </span>
+              </div>
+            ) : draft.entite === "MA" ? (
               <div className="flex h-9 items-center rounded-lg border border-line bg-cream/50 px-3 text-sm text-muted">
                 20 % — standard
               </div>

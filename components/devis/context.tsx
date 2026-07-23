@@ -9,9 +9,11 @@ import type {
   DevisConfig,
   DevisDraft,
   DevisLigne,
+  DevisPv,
   LigneLibre,
   VueDevis,
 } from "@/lib/devis/types";
+import type { PackSolaire } from "@/lib/devis/solaire";
 
 export interface WizardValue {
   draft: DevisDraft;
@@ -28,6 +30,10 @@ export interface WizardValue {
   patch: (partial: Partial<DevisDraft>) => void;
   patchClient: (partial: Partial<DevisClient>) => void;
   patchConfig: (partial: Partial<DevisConfig>) => void;
+  /** Modifie le volet solaire (autoconsommation, modules conformes, TVA 5,5 %). */
+  patchPv: (partial: Partial<DevisPv>) => void;
+  /** Applique une sélection pré-cochée (point de départ modifiable). */
+  applyPack: (pack: PackSolaire) => void;
   setSupplement: (articleId: string, quantite: number) => void;
   /** Coche/décoche un article du catalogue (qté 1 ↔ 0) — ajout de ligne immédiat. */
   toggleSupplement: (articleId: string) => void;

@@ -191,6 +191,18 @@ export interface Devis {
    */
   alma_propose?: boolean;
   alma_plan?: AlmaPlan;
+  /** Domaine du devis (0024). Absent → 'irve' (rétrocompat devis émis avant). */
+  domaine?: "irve" | "solaire";
+  /**
+   * Volet solaire figé au snapshot : puissance, type d'autoconsommation et
+   * régime TVA (réduit ou plein). Présent uniquement pour un devis solaire.
+   */
+  pv?: {
+    puissance_kwc: number;
+    autoconsommation: "totale" | "avec_surplus";
+    tva_reduite: boolean;
+    modules_conformes: boolean;
+  } | null;
   /** Horodatage de l'envoi au client (null tant que non envoyé). */
   envoye_le?: string | null;
   /** Destinataire du dernier envoi. */

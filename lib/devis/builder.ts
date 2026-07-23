@@ -9,10 +9,12 @@ import {
   tauxTvaDefaut,
   MARGE_DEFAUT,
 } from "@/lib/devis/pricing";
+import { MARGE_SOLAIRE, tauxTvaPv } from "@/lib/devis/solaire";
 import type {
   DevisConfig,
   DevisDraft,
   DevisLigne,
+  DomaineDevis,
   ModeDevis,
 } from "@/lib/devis/types";
 
@@ -122,6 +124,8 @@ export function buildDraft(
   lead: Lead | null,
   articles: CatalogueArticle[],
 ): DevisDraft {
+  const solaire = mode === "solaire";
+  const domaine: DomaineDevis = solaire ? "solaire" : "irve";
   const reseau: Reseau = lead?.reseau ?? "mono";
   const distance_m = lead?.distance_tableau ?? 5;
 
@@ -129,7 +133,12 @@ export function buildDraft(
     ...baseConfig(),
     reseau,
     distance_m,
-    pose_id: suggestPoseId(articles, reseau, distance_m),
+    // La pose IRVE (paliers Pn) n'a pas de sens en solaire : le devis PV pose
+    // ses lignes via les suppléments (sélection à la carte + packs).
+    pose_id: solaire ? null : suggestPoseId(articles, reseau, distance_m),
+    // L'attestation Consuel IRVE ne doit PAS s'injecter dans un devis solaire
+    // (le Consuel PV relève des « Démarches administratives »).
+    consuel: !solaire,
   };
 
   if (mode === "standard") {
@@ -140,6 +149,13 @@ export function buildDraft(
     entite,
     lead_id: lead?.id ?? null,
     mode,
+    domaine,
+    pv: {
+      // Rachat surplus ≈ 0 en 2026 → autoconsommation par défaut.
+      autoconsommation: "totale",
+      modules_conformes: false,
+      tva_reduite: false,
+    },
     client: {
       nom: lead?.nom ?? "",
       telephone: lead?.telephone ?? "",
@@ -160,7 +176,8 @@ export function buildDraft(
       .map((a) => a.id),
     ligne_overrides: {},
     lignes_libres: [],
-    taux_marge: MARGE_DEFAUT,
+    // Solaire : marge 45 % (PU = coût / 0,55) ; IRVE : 35 % par défaut.
+    taux_marge: solaire ? MARGE_SOLAIRE : MARGE_DEFAUT,
     remise_type: "percent",
     remise_valeur: 0,
     remise_motif: "",
@@ -217,14 +234,19 @@ export function deriveLignes(
 ): DevisLigne[] {
   const byId = new Map(articles.map((a) => [a.id, a]));
   const lignes: DevisLigne[] = [];
-  // Autoliquidation : tout le devis à 0 %. Sinon, taux par article (surcharge)
-  // ou défaut de catégorie ; MA reste figé à 20 % via tauxTvaDefaut.
+  // Autoliquidation : tout le devis à 0 %. Solaire : taux UNIQUE piloté par
+  // l'éligibilité (5,5 % ≤ 9 kWc + EMS + modules conformes, sinon 20 % — pas de
+  // surcharge par ligne, la règle est au niveau du devis). IRVE : taux par
+  // article (surcharge) ou défaut de catégorie ; MA reste figé à 20 %.
   const autoliq = draft.mode_tva === "fr_autoliquidation";
-  const tauxLigne = (a: CatalogueArticle) =>
-    autoliq
-      ? 0
-      : (draft.taux_tva_overrides[a.id] ??
-        tauxTvaDefaut(a.categorie, draft.entite));
+  const tauxPv = draft.domaine === "solaire" ? tauxTvaPv(draft, articles) : null;
+  const tauxLigne = (a: CatalogueArticle) => {
+    if (autoliq) return 0;
+    if (tauxPv !== null) return tauxPv;
+    return (
+      draft.taux_tva_overrides[a.id] ?? tauxTvaDefaut(a.categorie, draft.entite)
+    );
+  };
   const qrOn = new Set(draft.qr_articles);
   const push = (id: string | null, qty = 1) => {
     if (!id) return;

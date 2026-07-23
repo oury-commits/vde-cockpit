@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   ListPlus,
   PackageCheck,
   Save,
+  Sun,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -25,8 +26,9 @@ import { entiteConfig, ENTITE_LABEL } from "@/lib/entite/config";
 import { generateDevisPdf } from "@/lib/leads/devis";
 import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
 import type { DevisDraft, ModeDevis, VueDevis } from "@/lib/devis/types";
-import { MODE_DEVIS_LABEL, WIZARD_STEPS } from "@/lib/devis/types";
+import { MODE_DEVIS_LABEL, stepsFor } from "@/lib/devis/types";
 import { buildDraft, deriveLignes } from "@/lib/devis/builder";
+import { buildPackSupplements } from "@/lib/devis/solaire";
 import { uid } from "@/lib/uid";
 import {
   buildEcheancierPaiement,
@@ -45,6 +47,7 @@ import { DevisPreview } from "@/components/devis/DevisPreview";
 import { StepClient } from "@/components/devis/steps/StepClient";
 import { StepConfig } from "@/components/devis/steps/StepConfig";
 import { StepSupplements } from "@/components/devis/steps/StepSupplements";
+import { StepSolaire } from "@/components/devis/steps/StepSolaire";
 import { StepSynthese } from "@/components/devis/steps/StepSynthese";
 
 const RENT_TONE: Record<string, string> = {
@@ -129,6 +132,12 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
         setDraft((d) => (d ? { ...d, client: { ...d.client, ...p } } : d)),
       patchConfig: (p) =>
         setDraft((d) => (d ? { ...d, config: { ...d.config, ...p } } : d)),
+      patchPv: (p) =>
+        setDraft((d) => (d ? { ...d, pv: { ...d.pv, ...p } } : d)),
+      applyPack: (pack) =>
+        setDraft((d) =>
+          d ? { ...d, supplements: buildPackSupplements(pack, articles) } : d,
+        ),
       setSupplement: (articleId, quantite) =>
         setDraft((d) => {
           if (!d) return d;
@@ -232,10 +241,13 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
     return <ModeChooser entite={entite} lead={lead} onPick={start} />;
   }
 
-  const conforme = estConforme(controle);
+  // Le contrôle technique /6 est propre à l'IRVE : un devis solaire n'y est pas
+  // soumis (sa conformité relève de l'étude PVGIS / structure, hors barème).
+  const conforme = draft.domaine === "solaire" || estConforme(controle);
   const canExport = lignes.length > 0;
   const clientNom = draft.client.nom.trim();
-  const isLast = step === WIZARD_STEPS.length - 1;
+  const steps = stepsFor(draft.mode);
+  const isLast = step === steps.length - 1;
   const rent = rentabilite(totaux.marge_pct);
 
   const finalize = async (statut: "brouillon" | "envoye") => {
@@ -251,7 +263,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
     if (statut === "brouillon") {
       if (!leadId) return;
       const devis = buildDevisSnapshot(
-        draft, lignes, totaux, "Brouillon", dateISO, "brouillon",
+        draft, lignes, totaux, "Brouillon", dateISO, "brouillon", articles,
       );
       leads.attachDevis(leadId, devis, echeances);
       setSaved("brouillon");
@@ -300,7 +312,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
 
       // Numéro réservé atomiquement, puis persistance, puis PDF.
       const ref = await reserveRef(draft.entite, "devis");
-      const devis = buildDevisSnapshot(draft, lignes, totaux, ref, dateISO, "envoye");
+      const devis = buildDevisSnapshot(draft, lignes, totaux, ref, dateISO, "envoye", articles);
       leads.attachDevis(targetId, devis, echeances); // persistance d'abord
       await generateDevisPdf(draft.client, devis, echeances, fiche(draft.entite)); // PDF ensuite (marge masquée)
       setSaved("valide");
@@ -315,9 +327,14 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
     }
   };
 
-  const StepBody = [StepClient, StepConfig, StepSupplements, StepSynthese][
-    step
-  ];
+  const STEP_COMPONENTS: Record<string, ComponentType> = {
+    client: StepClient,
+    config: StepConfig,
+    supplements: StepSupplements,
+    solaire: StepSolaire,
+    synthese: StepSynthese,
+  };
+  const StepBody = STEP_COMPONENTS[steps[step]?.key ?? "client"];
 
   return (
     <WizardContext.Provider value={value}>
@@ -353,7 +370,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
 
         {/* Stepper */}
         <ol className="flex items-center gap-1 overflow-x-auto pb-1">
-          {WIZARD_STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const done = i < step;
             const current = i === step;
             return (
@@ -382,7 +399,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                   </span>
                   <span className="whitespace-nowrap font-medium">{s.label}</span>
                 </button>
-                {i < WIZARD_STEPS.length - 1 ? (
+                {i < steps.length - 1 ? (
                   <span className="mx-0.5 h-px w-3 shrink-0 bg-line sm:w-5" />
                 ) : null}
               </li>
@@ -450,9 +467,7 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                 ) : (
                   <Button
                     icon={ArrowRight}
-                    onClick={() =>
-                      setStep((s) => Math.min(WIZARD_STEPS.length - 1, s + 1))
-                    }
+                    onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
                   >
                     Suivant
                   </Button>
@@ -505,6 +520,16 @@ function ModeChooser({
       icon: ListPlus,
       desc: "Accès complet au catalogue, ligne par ligne, sans pré-composition.",
     },
+    // Solaire : FR uniquement (catalogue PV seedé en France ; MA plus tard).
+    ...(entite === "FR"
+      ? [
+          {
+            mode: "solaire" as ModeDevis,
+            icon: Sun,
+            desc: "Photovoltaïque en autoconsommation : sélection à la carte + points de départ ~3/6/9 kWc, TVA 5,5 % encadrée.",
+          },
+        ]
+      : []),
   ];
   return (
     <div className="mx-auto max-w-3xl">
