@@ -1,6 +1,7 @@
 import type { Devis, Entite, Facture, LigneDevis } from "@/lib/types";
-import { entiteConfig } from "@/lib/entite/config";
 import { formatDate, formatMontant } from "@/lib/format";
+import type { ParametresEntreprise } from "@/lib/entreprise/types";
+import { mentionsEntreprise, raisonSociale } from "@/lib/entreprise/document";
 
 // Modèles d'email « Envoi de devis / facture ». Expéditeur, mentions et devise
 // suivent l'entité du document — on ne mélange jamais FR et MA.
@@ -49,8 +50,9 @@ export function emailDevis(
   devis: Devis,
   nomClient: string,
   lienPdf: string | null,
+  fiche?: ParametresEntreprise | null,
 ): EmailDocument {
-  const cfg = entiteConfig(devis.entite);
+  const nom = raisonSociale(fiche ?? null, devis.entite);
   const ttc = formatMontant(devis.montant_ttc, devis.devise, { cents: true });
   const borne = modeleBorne(devis.lignes);
   const valide = dateEcheance(devis.date_creation, VALIDITE_DEVIS_JOURS);
@@ -70,12 +72,12 @@ export function emailDevis(
     "Nous restons à votre disposition pour toute question.",
     "",
     "Cordialement,",
-    cfg.nom,
-    ...cfg.mentions,
+    nom,
+    ...mentionsEntreprise(fiche ?? null, devis.entite),
   ];
 
   return {
-    sujet: `Votre devis ${devis.ref} — ${cfg.nom}`,
+    sujet: `Votre devis ${devis.ref} — ${nom}`,
     texte: lignes.join("\n"),
   };
 }
@@ -85,8 +87,9 @@ export function emailFacture(
   facture: Facture,
   nomClient: string,
   lienPdf: string | null,
+  fiche?: ParametresEntreprise | null,
 ): EmailDocument {
-  const cfg = entiteConfig(facture.entite);
+  const nom = raisonSociale(fiche ?? null, facture.entite);
   const ttc = formatMontant(facture.montant_ttc, facture.devise, { cents: true });
 
   const lignes = [
@@ -101,12 +104,12 @@ export function emailFacture(
       : "Votre facture est jointe à cet email.",
     "",
     "Cordialement,",
-    cfg.nom,
-    ...cfg.mentions,
+    nom,
+    ...mentionsEntreprise(fiche ?? null, facture.entite),
   ];
 
   return {
-    sujet: `Votre facture ${facture.ref} — ${cfg.nom}`,
+    sujet: `Votre facture ${facture.ref} — ${nom}`,
     texte: lignes.join("\n"),
   };
 }

@@ -7,6 +7,9 @@ import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
 import { pctTva, ventilationDe } from "@/lib/devis/tva";
 import { almaPhrase } from "@/lib/leads/reglements";
 import { buildLignes } from "@/lib/leads/pricing";
+import type { ParametresEntreprise } from "@/lib/entreprise/types";
+import { coordonneesLignes, mentionsEntreprise, raisonSociale } from "@/lib/entreprise/document";
+import { chargerImageDataUrl } from "@/lib/entreprise/image";
 
 export { buildLignes } from "@/lib/leads/pricing";
 
@@ -97,8 +100,9 @@ async function buildDevisDoc(
   client: DevisPdfClient,
   devis: Devis,
   echeancier?: Echeance[],
+  fiche?: ParametresEntreprise | null,
 ): Promise<jsPDF> {
-  const cfg = entiteConfig(devis.entite);
+  // Identité = fiche de CETTE entité uniquement (aucune donnée de l'autre pays).
   const opt = optionTva(devis.entite, devis.mode_tva);
   const eur = (n: number) => formatMontant(n, devis.devise, { cents: true });
 
@@ -106,22 +110,43 @@ async function buildDevisDoc(
   const pageW = 210;
   const mx = 16;
 
-  // En-tête
+  // En-tête — logo (best-effort) + raison sociale de la fiche
   doc.setFillColor(...BRAND);
   doc.rect(0, 0, pageW, 30, "F");
   doc.setTextColor(255, 255, 255);
+  let nomX = mx;
+  const logoData = await chargerImageDataUrl(fiche?.logo_complet_url);
+  if (logoData) {
+    try {
+      const fmt = logoData.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+      doc.addImage(logoData, fmt, mx, 7, 16, 16);
+      nomX = mx + 20;
+    } catch {
+      /* format non embarquable (svg/webp) → en-tête texte */
+    }
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text(cfg.nom, mx, 15);
+  doc.text(raisonSociale(fiche ?? null, devis.entite), nomX, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text("IRVE résidentiel", mx, 21);
+  doc.text("IRVE résidentiel", nomX, 21);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text(devis.ref, pageW - mx, 15, { align: "right" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(formatDate(devis.date_creation), pageW - mx, 21, { align: "right" });
+
+  // Coordonnées émetteur (sous l'en-tête, à droite) — issues de la fiche.
+  let yh = 36;
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  for (const l of coordonneesLignes(fiche ?? null)) {
+    doc.text(l, pageW - mx, yh, { align: "right" });
+    yh += 4;
+  }
+  doc.setTextColor(...INK);
 
   // Client
   let y = 44;
@@ -297,15 +322,11 @@ async function buildDevisDoc(
     doc.text(opt.mention, mx, y);
     y += 4;
   }
-  for (const line of cfg.mentions) {
+  // Identité légale + RIB + assurance + certifs — STRICTEMENT de l'entité du devis.
+  for (const line of mentionsEntreprise(fiche ?? null, devis.entite)) {
     doc.text(line, mx, y);
     y += 4;
   }
-  doc.text(
-    "Devis de démonstration — grille tarifaire et mentions à valider avant émission réelle.",
-    mx,
-    y,
-  );
 
   return doc;
 }
@@ -315,8 +336,9 @@ export async function generateDevisPdf(
   client: DevisPdfClient,
   devis: Devis,
   echeancier?: Echeance[],
+  fiche?: ParametresEntreprise | null,
 ): Promise<void> {
-  const doc = await buildDevisDoc(client, devis, echeancier);
+  const doc = await buildDevisDoc(client, devis, echeancier, fiche);
   doc.save(`${devis.ref}.pdf`);
 }
 
@@ -325,7 +347,8 @@ export async function devisPdfBlob(
   client: DevisPdfClient,
   devis: Devis,
   echeancier?: Echeance[],
+  fiche?: ParametresEntreprise | null,
 ): Promise<Blob> {
-  const doc = await buildDevisDoc(client, devis, echeancier);
+  const doc = await buildDevisDoc(client, devis, echeancier, fiche);
   return doc.output("blob");
 }

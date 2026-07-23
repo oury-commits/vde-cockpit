@@ -26,6 +26,8 @@ import { computeFaisabilite, FAISABILITE_META } from "@/lib/leads/faisabilite";
 import { computeEstimation } from "@/lib/leads/estimation";
 import { generateDevisPdf } from "@/lib/leads/devis";
 import { generateFacturePdf } from "@/lib/leads/facture";
+import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
+import { raisonSociale } from "@/lib/entreprise/document";
 import { aEncaissement } from "@/lib/leads/reglements";
 import { PaiementsCard } from "@/components/leads/fiche/PaiementsCard";
 import { entiteConfig } from "@/lib/entite/config";
@@ -133,6 +135,7 @@ export function LeadFiche() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const store = useLeadsStore();
+  const { fiche } = useEntreprise();
   const lead = store.leads.find((l) => l.id === id) ?? null;
 
   const [editOpen, setEditOpen] = useState(false);
@@ -167,6 +170,7 @@ export function LeadFiche() {
 
   const cfg = entiteConfig(lead.entite);
   const devise = cfg.devise;
+  const ficheEnt = fiche(lead.entite);
   const fm = FAISABILITE_META[faisabilite.niveau];
   const step = stepIndex(lead);
   const tel = lead.telephone.replace(/\s/g, "");
@@ -177,11 +181,11 @@ export function LeadFiche() {
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id, tvaMode || undefined);
-    if (devis) await generateDevisPdf(lead, devis);
+    if (devis) await generateDevisPdf(lead, devis, undefined, ficheEnt);
   };
   const onConvertFacture = async () => {
     const facture = await store.generateFacture(lead.id);
-    if (facture) generateFacturePdf(lead, facture);
+    if (facture) await generateFacturePdf(lead, facture, ficheEnt);
   };
   const activites = store.activitesFor(lead.id);
 
@@ -418,7 +422,7 @@ export function LeadFiche() {
                 </p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" icon={Download} onClick={() => void generateDevisPdf(lead, lead.devis!)}>
+                <Button size="sm" variant="secondary" icon={Download} onClick={() => void generateDevisPdf(lead, lead.devis!, undefined, ficheEnt)}>
                   Voir le PDF
                 </Button>
                 {/* Jamais sur un brouillon : un devis s'envoie une fois validé. */}
@@ -438,7 +442,7 @@ export function LeadFiche() {
             <div className="rounded-xl border border-line p-3">
               <label className="flex flex-col gap-1.5">
                 <span className="text-[12px] font-semibold text-muted">
-                  TVA ({cfg.nom} — {devise === "MAD" ? "DH" : "€"})
+                  TVA ({raisonSociale(ficheEnt, lead.entite)} — {devise === "MAD" ? "DH" : "€"})
                 </span>
                 <Select
                   value={tvaMode || cfg.tvaDefaut}
@@ -498,7 +502,7 @@ export function LeadFiche() {
                 variant="secondary"
                 icon={Download}
                 className="mt-3"
-                onClick={() => generateFacturePdf(lead, lead.facture!)}
+                onClick={() => void generateFacturePdf(lead, lead.facture!, ficheEnt)}
               >
                 Voir la facture
               </Button>
