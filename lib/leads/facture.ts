@@ -5,6 +5,9 @@ import { entiteConfig, optionTva } from "@/lib/entite/config";
 import { MENTION_REMISE, remiseLabel } from "@/lib/devis/remise";
 import { MENTION_SOLDE, marcheDeSolde } from "@/lib/leads/reglements";
 import { pctTva, ventilationDe } from "@/lib/devis/tva";
+import type { ParametresEntreprise } from "@/lib/entreprise/types";
+import { coordonneesLignes, mentionsEntreprise, raisonSociale } from "@/lib/entreprise/document";
+import { chargerImageDataUrl } from "@/lib/entreprise/image";
 
 /**
  * Prochaine ref de facture, NUMÉROTATION CONTINUE SANS TROU par entité
@@ -43,8 +46,12 @@ const BRAND: [number, number, number] = [15, 61, 46];
 const INK: [number, number, number] = [26, 26, 26];
 const MUTED: [number, number, number] = [92, 107, 99];
 
-function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
-  const cfg = entiteConfig(facture.entite);
+async function buildFactureDoc(
+  lead: Lead,
+  facture: Facture,
+  fiche?: ParametresEntreprise | null,
+): Promise<jsPDF> {
+  // Identité = fiche de CETTE entité uniquement (aucune donnée de l'autre pays).
   const opt = optionTva(facture.entite, facture.mode_tva);
   const m = (n: number) => formatMontant(n, facture.devise, { cents: true });
 
@@ -55,9 +62,20 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   doc.setFillColor(...BRAND);
   doc.rect(0, 0, pageW, 30, "F");
   doc.setTextColor(255, 255, 255);
+  let nomX = mx;
+  const logoData = await chargerImageDataUrl(fiche?.logo_complet_url);
+  if (logoData) {
+    try {
+      const fmt = logoData.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+      doc.addImage(logoData, fmt, mx, 7, 16, 16);
+      nomX = mx + 20;
+    } catch {
+      /* format non embarquable → en-tête texte */
+    }
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text(cfg.nom, mx, 15);
+  doc.text(raisonSociale(fiche ?? null, facture.entite), nomX, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
@@ -66,7 +84,7 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
       : facture.type === "acompte"
         ? "FACTURE D'ACOMPTE"
         : "FACTURE",
-    mx,
+    nomX,
     21,
   );
   doc.setFont("helvetica", "bold");
@@ -75,6 +93,15 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(formatDate(facture.date_creation), pageW - mx, 21, { align: "right" });
+
+  // Coordonnées émetteur (sous l'en-tête, à droite) — issues de la fiche.
+  let yh = 36;
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  for (const l of coordonneesLignes(fiche ?? null)) {
+    doc.text(l, pageW - mx, yh, { align: "right" });
+    yh += 4;
+  }
 
   let y = 44;
   doc.setTextColor(...MUTED);
@@ -209,21 +236,31 @@ function buildFactureDoc(lead: Lead, facture: Facture): jsPDF {
     doc.text(opt.mention, mx, y);
     y += 4;
   }
-  for (const line of cfg.mentions) {
+  // Identité légale + RIB + assurance + certifs — STRICTEMENT de l'entité.
+  for (const line of mentionsEntreprise(fiche ?? null, facture.entite)) {
     doc.text(line, mx, y);
     y += 4;
   }
-  doc.text("Facture de démonstration — mentions légales à valider avant émission réelle.", mx, y);
 
   return doc;
 }
 
-/** PDF de facture — mentions légales et devise de l'entité. Client only. */
-export function generateFacturePdf(lead: Lead, facture: Facture): void {
-  buildFactureDoc(lead, facture).save(`${facture.ref}.pdf`);
+/** PDF de facture — identité (fiche), mentions et devise de l'entité. Client only. */
+export async function generateFacturePdf(
+  lead: Lead,
+  facture: Facture,
+  fiche?: ParametresEntreprise | null,
+): Promise<void> {
+  const doc = await buildFactureDoc(lead, facture, fiche);
+  doc.save(`${facture.ref}.pdf`);
 }
 
 /** Même PDF, en Blob — pour dépôt sur Supabase Storage (envoi client). */
-export function facturePdfBlob(lead: Lead, facture: Facture): Blob {
-  return buildFactureDoc(lead, facture).output("blob");
+export async function facturePdfBlob(
+  lead: Lead,
+  facture: Facture,
+  fiche?: ParametresEntreprise | null,
+): Promise<Blob> {
+  const doc = await buildFactureDoc(lead, facture, fiche);
+  return doc.output("blob");
 }

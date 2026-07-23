@@ -21,6 +21,7 @@ import {
   TYPE_LOGEMENT_LABEL,
 } from "@/lib/leads/meta";
 import { generateDevisPdf } from "@/lib/leads/devis";
+import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
 import { Drawer } from "@/components/ui/Drawer";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
@@ -67,6 +68,7 @@ export function LeadDrawer({
   onClose: () => void;
 }) {
   const store = useLeadsStore();
+  const { fiche } = useEntreprise();
   const lead = store.leads.find((l) => l.id === leadId) ?? null;
 
   const [askPerdu, setAskPerdu] = useState(false);
@@ -93,7 +95,7 @@ export function LeadDrawer({
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id);
-    if (devis) await generateDevisPdf(lead, devis);
+    if (devis) await generateDevisPdf(lead, devis, undefined, fiche(lead.entite));
   };
 
   return (
@@ -196,7 +198,7 @@ export function LeadDrawer({
               size="sm"
               variant="secondary"
               icon={Download}
-              onClick={() => void generateDevisPdf(lead, lead.devis!)}
+              onClick={() => void generateDevisPdf(lead, lead.devis!, undefined, fiche(lead.entite))}
             >
               Télécharger le PDF
             </Button>

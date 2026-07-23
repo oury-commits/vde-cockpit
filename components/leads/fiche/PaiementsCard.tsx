@@ -17,6 +17,7 @@ import type { Lead, RdvType, ReglementMode } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { generateFacturePdf } from "@/lib/leads/facture";
+import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
 import { formatDate, formatMontant } from "@/lib/format";
 import { RdvDialog } from "@/components/leads/fiche/RdvDialog";
 import { adresseComplete, mapsLink, unsyncRdv } from "@/components/leads/fiche/rdvSync";
@@ -55,6 +56,7 @@ const heureFR = (iso: string) =>
 export function PaiementsCard({ lead }: { lead: Lead }) {
   const store = useLeadsStore();
   const { session, enabled } = useAuth();
+  const { fiche } = useEntreprise();
   const token = session?.access_token ?? null;
   const [montant, setMontant] = useState("");
   const [mode, setMode] = useState<ReglementMode>("virement");
@@ -103,7 +105,7 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
     setBusy(true);
     try {
       const f = await store.genererFactureSolde(lead.id);
-      if (f) generateFacturePdf(lead, f);
+      if (f) await generateFacturePdf(lead, f, fiche(lead.entite));
     } finally {
       setBusy(false);
     }
@@ -431,7 +433,7 @@ export function PaiementsCard({ lead }: { lead: Lead }) {
             variant="secondary"
             icon={Receipt}
             className="mt-2"
-            onClick={() => generateFacturePdf(lead, lead.facture!)}
+            onClick={() => void generateFacturePdf(lead, lead.facture!, fiche(lead.entite))}
           >
             Voir la facture de solde
           </Button>

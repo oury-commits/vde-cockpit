@@ -7,6 +7,7 @@ import { useLeadsStore } from "@/lib/leads/store";
 import { devisPdfBlob, generateDevisPdf } from "@/lib/leads/devis";
 import { facturePdfBlob, generateFacturePdf } from "@/lib/leads/facture";
 import { uploadDocument } from "@/lib/documents/storage";
+import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
 import {
   emailDevis,
   emailFacture,
@@ -31,7 +32,10 @@ export function EnvoiDialog({
   kind: "devis" | "facture";
 }) {
   const store = useLeadsStore();
+  const { fiche } = useEntreprise();
   const doc = kind === "devis" ? lead.devis : lead.facture;
+  // Fiche de l'entité du document — UNIQUEMENT celle-ci (jamais l'autre pays).
+  const ficheDoc = doc ? fiche(doc.entite) : null;
 
   const [to, setTo] = useState(lead.email ?? "");
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -55,9 +59,9 @@ export function EnvoiDialog({
   const apercu = useMemo(() => {
     if (!doc) return null;
     return kind === "devis"
-      ? emailDevis(doc as Devis, lead.nom, null)
-      : emailFacture(doc as Facture, lead.nom, null);
-  }, [doc, kind, lead.nom]);
+      ? emailDevis(doc as Devis, lead.nom, null, ficheDoc)
+      : emailFacture(doc as Facture, lead.nom, null, ficheDoc);
+  }, [doc, kind, lead.nom, ficheDoc]);
 
   if (!doc || !apercu) return null;
 
@@ -72,13 +76,13 @@ export function EnvoiDialog({
       // 1) PDF · 2) dépôt Storage (lien signé, null en démo) · 3) email
       const pdf =
         kind === "devis"
-          ? await devisPdfBlob(lead, doc as Devis, lead.echeancier ?? undefined)
-          : facturePdfBlob(lead, doc as Facture);
+          ? await devisPdfBlob(lead, doc as Devis, lead.echeancier ?? undefined, ficheDoc)
+          : await facturePdfBlob(lead, doc as Facture, ficheDoc);
       const { url } = await uploadDocument(doc.entite, doc.ref, pdf);
       const mail =
         kind === "devis"
-          ? emailDevis(doc as Devis, lead.nom, url)
-          : emailFacture(doc as Facture, lead.nom, url);
+          ? emailDevis(doc as Devis, lead.nom, url, ficheDoc)
+          : emailFacture(doc as Facture, lead.nom, url, ficheDoc);
 
       if (configured) {
         const res = await fetch("/api/send-devis", {
@@ -101,9 +105,9 @@ export function EnvoiDialog({
       } else {
         // Fallback : PDF téléchargé + email pré-rempli à envoyer à la main.
         if (kind === "devis") {
-          await generateDevisPdf(lead, doc as Devis, lead.echeancier ?? undefined);
+          await generateDevisPdf(lead, doc as Devis, lead.echeancier ?? undefined, ficheDoc);
         } else {
-          generateFacturePdf(lead, doc as Facture);
+          await generateFacturePdf(lead, doc as Facture, ficheDoc);
         }
         window.location.href = mailtoHref(to.trim(), mail);
       }

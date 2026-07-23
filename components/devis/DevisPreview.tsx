@@ -5,6 +5,8 @@ import { Segmented } from "@/components/devis/atoms";
 import { QrProduit } from "@/components/devis/QrProduit";
 import { UNITE_LABEL } from "@/lib/catalogue/meta";
 import { entiteConfig, optionTva } from "@/lib/entite/config";
+import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
+import { raisonSociale } from "@/lib/entreprise/document";
 import { formatMontant } from "@/lib/format";
 import {
   AIDE_TVA_FR,
@@ -23,6 +25,7 @@ const ECHEANCE_LABEL: Record<string, string> = {
 
 export function DevisPreview() {
   const { draft, lignes, totaux, vue, setVue, setTauxLigne } = useWizard();
+  const { fiche } = useEntreprise();
   const cfg = entiteConfig(draft.entite);
   const devise = cfg.devise;
   const m = (n: number) => formatMontant(n, devise, { cents: true });
@@ -40,7 +43,7 @@ export function DevisPreview() {
       <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
           <p className="font-serif text-lg italic text-ink">Aperçu</p>
-          <p className="text-[11px] text-muted">{cfg.nom}</p>
+          <p className="text-[11px] text-muted">{raisonSociale(fiche(draft.entite), draft.entite)}</p>
         </div>
         <Segmented
           size="sm"

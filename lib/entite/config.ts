@@ -22,8 +22,6 @@ export interface EntiteConfig {
   prefixeFacture: string; // FAC-2026 / FAC-MA-2026
   tvaOptions: OptionTva[];
   tvaDefaut: ModeTva;
-  /** Mentions légales (pied de devis/facture). */
-  mentions: string[];
 }
 
 const AUTOLIQ_MENTION =
@@ -50,13 +48,6 @@ export const ENTITES: Record<Entite, EntiteConfig> = {
         mention: AUTOLIQ_MENTION,
       },
     ],
-    mentions: [
-      "Vision Digital Energies — 870 rue Denis Papin, 54710 Ludres",
-      "SIREN 917 421 125 · SIRET 917 421 125 00019 · TVA FR84 917 421 125",
-      // TODO: brancher données réelles — n° d'assurance décennale (obligatoire
-      // IRVE), fourni par Oury.
-      "Assurance décennale : (à compléter)",
-    ],
   },
   MA: {
     code: "MA",
@@ -68,11 +59,6 @@ export const ENTITES: Record<Entite, EntiteConfig> = {
     prefixeFacture: "FAC-MA-2026",
     tvaDefaut: "ma_20",
     tvaOptions: [{ mode: "ma_20", label: "20 % — standard", taux: 0.2 }],
-    mentions: [
-      "Vision Digitale Energies Maroc SARL — capital 10 000 MAD",
-      "IMM 16 Rue Otawa, Océan — Rabat",
-      "ICE 003910477000069 · RC Rabat 198269 · IF 72081360",
-    ],
   },
 };
 

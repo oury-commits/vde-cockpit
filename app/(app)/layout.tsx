@@ -7,6 +7,7 @@ import { EntityProvider } from "@/lib/entite/EntityProvider";
 import { SettingsProvider } from "@/lib/settings/store";
 import { ProfilesProvider } from "@/lib/roles/ProfilesProvider";
 import { IdentityProvider } from "@/lib/roles/IdentityProvider";
+import { EntrepriseProvider } from "@/lib/entreprise/EntrepriseProvider";
 import { InterventionsProvider } from "@/lib/interventions/store";
 import { DevIdentityBar } from "@/components/roles/DevIdentityBar";
 import { RouteGuard } from "@/components/roles/RouteGuard";
@@ -23,8 +24,9 @@ export default function AppLayout({
       <ProfilesProvider>
         <IdentityProvider>
           <SettingsProvider>
-            <EntityProvider>
-              <InterventionsProvider>
+            <EntrepriseProvider>
+              <EntityProvider>
+                <InterventionsProvider>
                 <div className="flex min-h-screen">
                   <Sidebar />
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -37,8 +39,9 @@ export default function AppLayout({
                   </div>
                   <BottomNav />
                 </div>
-              </InterventionsProvider>
-            </EntityProvider>
+                </InterventionsProvider>
+              </EntityProvider>
+            </EntrepriseProvider>
           </SettingsProvider>
         </IdentityProvider>
       </ProfilesProvider>

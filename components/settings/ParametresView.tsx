@@ -7,6 +7,7 @@ import { useSettings } from "@/lib/settings/store";
 import { formatMontant } from "@/lib/format";
 import { arrondiMad } from "@/lib/catalogue/prix";
 import { CalendarConnect } from "@/components/settings/CalendarConnect";
+import { MonEntreprise } from "@/components/settings/MonEntreprise";
 
 export function ParametresView() {
   const { tauxMad, setTauxMad } = useSettings();
@@ -14,6 +15,8 @@ export function ParametresView() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <PageTitle>Paramètres</PageTitle>
+
+      <MonEntreprise />
 
       <CalendarConnect />
 
