@@ -11,7 +11,8 @@
     "test:calendar": "node scripts/calendar-crypto-test.mjs",
     "test:calendar-event": "node scripts/calendar-event-test.mjs",
     "test:planning": "node scripts/planning-tour-test.mjs",
-    "test:entreprise": "node scripts/entreprise-isolation-test.mjs"
+    "test:entreprise": "node scripts/entreprise-isolation-test.mjs",
+    "test:reste": "node scripts/reste-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.5",

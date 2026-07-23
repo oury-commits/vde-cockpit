@@ -30,6 +30,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
 import { Timeline } from "@/components/leads/Timeline";
 import { formatDate, formatMontant } from "@/lib/format";
+import { estimationLead } from "@/lib/leads/estimation";
 import { entiteConfig } from "@/lib/entite/config";
 import { cn } from "@/lib/cn";
 
@@ -79,6 +80,8 @@ export function LeadDrawer({
   const [actText, setActText] = useState("");
 
   if (!lead) return null;
+
+  const estim = estimationLead(lead, lead.entite);
 
   const onStatut = (v: Statut) => {
     if (v === "perdu") {
@@ -297,9 +300,15 @@ export function LeadDrawer({
           value={lead.distance_tableau != null ? `${lead.distance_tableau} m` : null}
         />
         {/* eligible_advenir masqué : usage interne (import + scoring) seulement. */}
+        {/* Source unique : devis TTC → montant saisi → estimation auto (même
+            valeur que la liste et la fiche). */}
         <InfoRow
-          label="Montant estimé"
-          value={lead.montant_estime != null ? formatMontant(lead.montant_estime, entiteConfig(lead.entite).devise) : null}
+          label={estim.source === "devis" ? "Devis TTC" : "Montant estimé"}
+          value={
+            estim.fixe
+              ? formatMontant(estim.min, entiteConfig(lead.entite).devise)
+              : `${formatMontant(estim.min, entiteConfig(lead.entite).devise)} – ${formatMontant(estim.max, entiteConfig(lead.entite).devise)}`
+          }
         />
       </div>
 

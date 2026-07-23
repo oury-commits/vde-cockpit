@@ -365,6 +365,11 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                         icon={Save}
                         onClick={() => finalize("brouillon")}
                         disabled={!canExport || busy || saved !== null}
+                        title={
+                          !canExport
+                            ? "Ajoute au moins une ligne (borne, pose…) pour enregistrer un brouillon"
+                            : undefined
+                        }
                       >
                         Brouillon
                       </Button>
@@ -376,11 +381,13 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
                         !canExport || !conforme || !clientNom || busy || saved !== null
                       }
                       title={
-                        !clientNom
-                          ? "Renseigne le nom du client"
-                          : !conforme
-                            ? "Installation non conforme — corrigez le contrôle technique"
-                            : undefined
+                        !canExport
+                          ? "Ajoute au moins une ligne (borne, pose…) avant d'émettre"
+                          : !clientNom
+                            ? "Renseigne le nom du client"
+                            : !conforme
+                              ? "Installation non conforme — corrigez le contrôle technique"
+                              : undefined
                       }
                     >
                       {saved === "valide"

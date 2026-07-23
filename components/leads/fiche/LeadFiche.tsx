@@ -23,7 +23,7 @@ import {
 import type { Lead, ModeTva, Statut } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
 import { computeFaisabilite, FAISABILITE_META } from "@/lib/leads/faisabilite";
-import { computeEstimation } from "@/lib/leads/estimation";
+import { estimationLead } from "@/lib/leads/estimation";
 import { generateDevisPdf } from "@/lib/leads/devis";
 import { generateFacturePdf } from "@/lib/leads/facture";
 import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
@@ -150,7 +150,7 @@ export function LeadFiche() {
     [lead],
   );
   const estimation = useMemo(
-    () => (lead ? computeEstimation(lead, lead.entite) : null),
+    () => (lead ? estimationLead(lead, lead.entite) : null),
     [lead],
   );
 
@@ -246,9 +246,17 @@ export function LeadFiche() {
             </div>
           </div>
           <div className="rounded-lg bg-surface px-3 py-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">Estimation</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              {estimation.source === "devis"
+                ? "Devis TTC"
+                : estimation.source === "saisi"
+                  ? "Montant estimé"
+                  : "Estimation auto"}
+            </div>
             <div className="mt-0.5 font-mono text-sm font-semibold text-ink">
-              {formatMontant(estimation.min, devise)} – {formatMontant(estimation.max, devise)}
+              {estimation.fixe
+                ? formatMontant(estimation.min, devise)
+                : `${formatMontant(estimation.min, devise)} – ${formatMontant(estimation.max, devise)}`}
             </div>
           </div>
           <div className="rounded-lg bg-surface px-3 py-2">
