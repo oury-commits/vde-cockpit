@@ -8,6 +8,7 @@ import { formatMontant } from "@/lib/format";
 import { arrondiMad } from "@/lib/catalogue/prix";
 import { CalendarConnect } from "@/components/settings/CalendarConnect";
 import { MonEntreprise } from "@/components/settings/MonEntreprise";
+import { SecuriteMotDePasse } from "@/components/settings/SecuriteMotDePasse";
 
 export function ParametresView() {
   const { tauxMad, setTauxMad } = useSettings();
@@ -19,6 +20,8 @@ export function ParametresView() {
       <MonEntreprise />
 
       <CalendarConnect />
+
+      <SecuriteMotDePasse />
 
       <section className="rounded-2xl border border-line bg-surface p-5">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
