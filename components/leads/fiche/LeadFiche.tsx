@@ -263,7 +263,11 @@ export function LeadFiche() {
 
         {/* Actions */}
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button icon={FileText} onClick={onGenerateDevis} size="sm">
+          <Button
+            icon={FileText}
+            onClick={() => router.push(`/devis/nouveau?lead=${lead.id}`)}
+            size="sm"
+          >
             Créer le devis
           </Button>
           <ActionLink href={`tel:${tel}`} icon={Phone}>Appeler</ActionLink>
@@ -456,16 +460,21 @@ export function LeadFiche() {
                   ))}
                 </Select>
               </label>
-              <Button icon={FileText} onClick={onGenerateDevis} className="mt-2 w-full">
-                Générer le devis (1 clic)
-              </Button>
               <Link
                 href={`/devis/nouveau?lead=${lead.id}`}
-                className="mt-2 flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-cream hover:text-ink"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-cream transition-colors hover:bg-brand-hover"
               >
                 <SlidersHorizontal className="size-4" strokeWidth={1.75} />
-                Générateur détaillé (catalogue)
+                Créer le devis (catalogue)
               </Link>
+              <button
+                type="button"
+                onClick={onGenerateDevis}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-cream hover:text-ink"
+              >
+                <FileText className="size-4" strokeWidth={1.75} />
+                Brouillon rapide (1 clic)
+              </button>
             </div>
           )}
 

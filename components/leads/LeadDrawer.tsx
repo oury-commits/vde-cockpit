@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Download,
   FileText,
@@ -8,6 +9,7 @@ import {
   Phone,
   PenLine,
   Plus,
+  SlidersHorizontal,
 } from "lucide-react";
 import type { ActiviteType, MotifPerte, Statut, StatutEcheance } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
@@ -246,9 +248,23 @@ export function LeadDrawer({
           ) : null}
         </div>
       ) : (
-        <Button icon={FileText} onClick={onGenerateDevis} className="w-full">
-          Générer le devis (1 clic)
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Link
+            href={`/devis/nouveau?lead=${lead.id}`}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-cream transition-colors hover:bg-brand-hover"
+          >
+            <SlidersHorizontal className="size-4" strokeWidth={1.75} />
+            Créer le devis (catalogue)
+          </Link>
+          <button
+            type="button"
+            onClick={onGenerateDevis}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-cream hover:text-ink"
+          >
+            <FileText className="size-4" strokeWidth={1.75} />
+            Brouillon rapide (1 clic)
+          </button>
+        </div>
       )}
 
       {/* Coordonnées & projet */}

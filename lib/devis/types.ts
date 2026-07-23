@@ -101,6 +101,12 @@ export interface DevisDraft {
   controle_non_conformes: ControleKey[];
   config: DevisConfig;
   supplements: DevisSupplement[];
+  /**
+   * Bornes dont le QR de fiche produit est affiché sur CE devis. Défaut =
+   * bornes dont le catalogue a `afficher_qr`. Toggle par-devis dans le wizard :
+   * jamais de QR sur pose/consommables (règle produit).
+   */
+  qr_articles: string[];
   taux_marge: number; // marge cible globale (0.35 par défaut)
   /** Réduction commerciale : saisie en % du HT ou en montant fixe, + motif. */
   remise_type: "percent" | "montant";

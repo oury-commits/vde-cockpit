@@ -154,6 +154,10 @@ export function buildDraft(
     // pas des suppléments figés : voir deriveLignes. Les suppléments sont
     // uniquement les ajouts manuels de l'utilisateur.
     supplements: [],
+    // QR par défaut = bornes marquées `afficher_qr` au catalogue (toggle par-devis).
+    qr_articles: articles
+      .filter((a) => a.categorie === "borne" && a.afficher_qr && a.url_produit)
+      .map((a) => a.id),
     taux_marge: MARGE_DEFAUT,
     remise_type: "percent",
     remise_valeur: 0,
@@ -173,11 +177,13 @@ function ligneFromArticle(
   marge: number,
   cout: number,
   taux_tva: number,
+  qrForce: boolean,
 ): DevisLigne {
   const pu = puVenteHt(cout, marge);
   // QR réservé aux bornes (réassurance client) : jamais sur pose/consommables.
+  // Affiché si le toggle par-devis (qr_articles) l'active pour cette borne.
   const url_produit =
-    article.categorie === "borne" && article.afficher_qr && article.url_produit
+    article.categorie === "borne" && article.url_produit && qrForce
       ? article.url_produit
       : null;
   return {
@@ -217,10 +223,11 @@ export function deriveLignes(
       ? 0
       : (draft.taux_tva_overrides[a.id] ??
         tauxTvaDefaut(a.categorie, draft.entite));
+  const qrOn = new Set(draft.qr_articles);
   const push = (id: string | null, qty = 1) => {
     if (!id) return;
     const a = byId.get(id);
-    if (a) lignes.push(ligneFromArticle(a, qty, marge, coutOf(a), tauxLigne(a)));
+    if (a) lignes.push(ligneFromArticle(a, qty, marge, coutOf(a), tauxLigne(a), qrOn.has(a.id)));
   };
 
   push(draft.config.borne_id);
