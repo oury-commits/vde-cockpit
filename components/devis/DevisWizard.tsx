@@ -138,6 +138,23 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
               quantite > 0 ? [...rest, { article_id: articleId, quantite }] : rest,
           };
         }),
+      toggleSupplement: (articleId) =>
+        setDraft((d) => {
+          if (!d) return d;
+          const coche = d.supplements.some((s) => s.article_id === articleId && s.quantite > 0);
+          const rest = d.supplements.filter((s) => s.article_id !== articleId);
+          return {
+            ...d,
+            supplements: coche ? rest : [...rest, { article_id: articleId, quantite: 1 }],
+          };
+        }),
+      toggleQr: (articleId) =>
+        setDraft((d) => {
+          if (!d) return d;
+          const set = new Set(d.qr_articles);
+          set.has(articleId) ? set.delete(articleId) : set.add(articleId);
+          return { ...d, qr_articles: [...set] };
+        }),
       setTauxLigne: (articleId, taux) =>
         setDraft((d) =>
           d

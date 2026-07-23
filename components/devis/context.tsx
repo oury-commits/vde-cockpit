@@ -28,6 +28,10 @@ export interface WizardValue {
   patchClient: (partial: Partial<DevisClient>) => void;
   patchConfig: (partial: Partial<DevisConfig>) => void;
   setSupplement: (articleId: string, quantite: number) => void;
+  /** Coche/décoche un article du catalogue (qté 1 ↔ 0) — ajout de ligne immédiat. */
+  toggleSupplement: (articleId: string) => void;
+  /** Affiche/masque le QR de fiche produit d'une borne sur ce devis. */
+  toggleQr: (articleId: string) => void;
   /** Surcharge le taux TVA d'une ligne (par article_id). France uniquement. */
   setTauxLigne: (articleId: string, taux: number) => void;
   toggleControle: (key: ControleLigne["key"]) => void;
