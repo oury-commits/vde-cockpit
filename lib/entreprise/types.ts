@@ -39,6 +39,8 @@ export interface ParametresEntreprise {
   certifications: string[];
   assurance_decennale_compagnie: string | null;
   assurance_decennale_police: string | null;
+  /** Lien avis Google (tag {{lien_avis}} des modèles d'emails). */
+  lien_avis: string | null;
   // Méta
   updated_at: string;
   modifie_par: string | null;
@@ -79,6 +81,7 @@ export function ficheVide(
     certifications: [],
     assurance_decennale_compagnie: null,
     assurance_decennale_police: null,
+    lien_avis: null,
     updated_at: "2026-01-01T00:00:00.000Z",
     modifie_par: null,
     ...overrides,

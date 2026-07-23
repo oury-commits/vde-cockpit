@@ -1,8 +1,9 @@
-import type {
-  InputHTMLAttributes,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-  ReactNode,
+import {
+  forwardRef,
+  type InputHTMLAttributes,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+  type ReactNode,
 } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -37,17 +38,17 @@ export function Input({
   return <input className={cn(CONTROL, className)} {...props} />;
 }
 
-export function Textarea({
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      className={cn(CONTROL, "h-auto min-h-[76px] py-2 leading-relaxed", className)}
-      {...props}
-    />
-  );
-}
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function Textarea({ className, ...props }, ref) {
+    return (
+      <textarea
+        ref={ref}
+        className={cn(CONTROL, "h-auto min-h-[76px] py-2 leading-relaxed", className)}
+        {...props}
+      />
+    );
+  },
+);
 
 export function Select({
   className,
