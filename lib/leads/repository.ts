@@ -19,10 +19,15 @@ export type EcritureGardee =
   | { ok: true; lead: Lead }
   | { ok: false; auteur: string | null };
 
+/** Résultat d'une persistance : `error` null = OK, sinon message à REMONTER. */
+export interface PersistResult {
+  error: string | null;
+}
+
 export interface LeadsRepository {
   readonly kind: "local" | "supabase";
   loadAll(): Promise<Persisted>;
-  persistAll(state: Persisted): Promise<void>;
+  persistAll(state: Persisted): Promise<PersistResult>;
   /**
    * Écriture d'un lead sous verrou optimiste : n'écrit que si la version
    * persistée est bien celle qui a été lue. Sinon → conflit, on n'écrase pas.
@@ -73,11 +78,12 @@ class LocalRepository implements LeadsRepository {
     return seedState();
   }
 
-  async persistAll(state: Persisted): Promise<void> {
+  async persistAll(state: Persisted): Promise<PersistResult> {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* ignore */
+      return { error: null };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "stockage local indisponible" };
     }
   }
 
@@ -141,13 +147,22 @@ class SupabaseRepository implements LeadsRepository {
     };
   }
 
-  async persistAll(state: Persisted): Promise<void> {
+  async persistAll(state: Persisted): Promise<PersistResult> {
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) return { error: null };
     // TODO 2B: passer en upsert par enregistrement (diff) — le bulk complet à
     // chaque changement suffit au volume actuel mais n'est pas optimal.
-    if (state.leads.length) await sb.from("leads").upsert(state.leads);
-    if (state.activites.length) await sb.from("activites").upsert(state.activites);
+    // Les erreurs sont REMONTÉES (jamais avalées) : un upsert qui casse en
+    // silence gèlerait la donnée en base sans que personne le sache.
+    if (state.leads.length) {
+      const { error } = await sb.from("leads").upsert(state.leads);
+      if (error) return { error: `dossiers : ${error.message}` };
+    }
+    if (state.activites.length) {
+      const { error } = await sb.from("activites").upsert(state.activites);
+      if (error) return { error: `historique : ${error.message}` };
+    }
+    return { error: null };
   }
 
   /** UPDATE … WHERE version = :lue → 0 ligne = quelqu'un est passé avant. */

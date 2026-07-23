@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -31,6 +32,7 @@ import type {
   Visibilite,
 } from "@/lib/types";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useToast } from "@/components/ui/Toast";
 import { JALONS_MANUELS, jalonActif } from "@/lib/leads/jalons";
 import type { LeadDraft } from "@/lib/leads/csv";
 import { nextRef } from "@/lib/leads/ref";
@@ -188,6 +190,8 @@ function displayName(email: string | null): string {
 export function LeadsStoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { identite } = useIdentity();
+  const { notify } = useToast();
+  const persistErr = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
@@ -215,11 +219,24 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Sauvegarde continue via le repository.
+  // Sauvegarde continue via le repository. Toute erreur est REMONTÉE (toast +
+  // log), jamais avalée — c'est ce silence qui avait masqué le bug enum 'rdv'.
   useEffect(() => {
     if (!loaded) return;
-    void getRepository().persistAll({ leads, activites });
-  }, [loaded, leads, activites]);
+    void getRepository()
+      .persistAll({ leads, activites })
+      .then((res) => {
+        if (res.error) {
+          if (persistErr.current !== res.error) {
+            persistErr.current = res.error;
+            console.error("[persist] leads:", res.error);
+            notify(`Sauvegarde impossible (${res.error}). Recharge la page.`, "alert");
+          }
+        } else {
+          persistErr.current = null;
+        }
+      });
+  }, [loaded, leads, activites, notify]);
 
   // Rien d'anonyme : l'auteur est l'utilisateur connecté (fallback démo).
   const auteur = useMemo(() => displayName(user?.email ?? null), [user?.email]);

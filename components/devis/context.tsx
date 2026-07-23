@@ -9,6 +9,7 @@ import type {
   DevisConfig,
   DevisDraft,
   DevisLigne,
+  LigneLibre,
   VueDevis,
 } from "@/lib/devis/types";
 
@@ -35,6 +36,16 @@ export interface WizardValue {
   /** Surcharge le taux TVA d'une ligne (par article_id). France uniquement. */
   setTauxLigne: (articleId: string, taux: number) => void;
   toggleControle: (key: ControleLigne["key"]) => void;
+  /** Renomme une ligne catalogue (chaîne vide = nom d'origine). */
+  setLigneNom: (articleId: string, nom: string) => void;
+  /** Impose le PU vente HT d'une ligne catalogue ; null = PU dérivé de la marge. */
+  setLignePu: (articleId: string, pu: number | null) => void;
+  /** Ajoute une ligne libre (hors catalogue). */
+  addLigneLibre: () => void;
+  /** Modifie une ligne libre. */
+  updateLigneLibre: (id: string, patch: Partial<LigneLibre>) => void;
+  /** Supprime une ligne libre. */
+  removeLigneLibre: (id: string) => void;
 }
 
 export const WizardContext = createContext<WizardValue | null>(null);

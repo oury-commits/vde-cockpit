@@ -8,15 +8,18 @@ import { SettingsProvider } from "@/lib/settings/store";
 import { ProfilesProvider } from "@/lib/roles/ProfilesProvider";
 import { IdentityProvider } from "@/lib/roles/IdentityProvider";
 import { EntrepriseProvider } from "@/lib/entreprise/EntrepriseProvider";
-import { InterventionsProvider } from "@/lib/interventions/store";
 import { DevIdentityBar } from "@/components/roles/DevIdentityBar";
 import { RouteGuard } from "@/components/roles/RouteGuard";
+import { ToastProvider } from "@/components/ui/Toast";
 
 export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <RequireAuth>
+      {/* ToastProvider englobe tout : les providers de données y remontent
+          leurs erreurs de persistance (jamais avalées). */}
+      <ToastProvider>
       {/* ProfilesProvider englobe IdentityProvider : l'identité DÉCOULE du
           profil, donc un droit modifié dans /equipe s'applique aussitôt.
           IdentityProvider englobe EntityProvider : l'entité active dépend du
@@ -26,7 +29,6 @@ export default function AppLayout({
           <SettingsProvider>
             <EntrepriseProvider>
               <EntityProvider>
-                <InterventionsProvider>
                 <div className="flex min-h-screen">
                   <Sidebar />
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -39,12 +41,12 @@ export default function AppLayout({
                   </div>
                   <BottomNav />
                 </div>
-                </InterventionsProvider>
               </EntityProvider>
             </EntrepriseProvider>
           </SettingsProvider>
         </IdentityProvider>
       </ProfilesProvider>
+      </ToastProvider>
     </RequireAuth>
   );
 }

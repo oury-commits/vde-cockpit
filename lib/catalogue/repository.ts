@@ -7,7 +7,8 @@ const STORAGE_KEY = "vde.catalogue.v1";
 export interface CatalogueRepository {
   readonly kind: "local" | "supabase";
   loadAll(): Promise<CatalogueArticle[]>;
-  persistAll(articles: CatalogueArticle[]): Promise<void>;
+  /** `error` null = OK ; sinon message à REMONTER (jamais avalé). */
+  persistAll(articles: CatalogueArticle[]): Promise<{ error: string | null }>;
 }
 
 class LocalCatalogueRepository implements CatalogueRepository {
@@ -23,11 +24,12 @@ class LocalCatalogueRepository implements CatalogueRepository {
     return buildCatalogueSeed(new Date());
   }
 
-  async persistAll(articles: CatalogueArticle[]): Promise<void> {
+  async persistAll(articles: CatalogueArticle[]): Promise<{ error: string | null }> {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(articles));
-    } catch {
-      /* ignore */
+      return { error: null };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "stockage local indisponible" };
     }
   }
 }
@@ -49,10 +51,11 @@ class SupabaseCatalogueRepository implements CatalogueRepository {
     return data as CatalogueArticle[];
   }
 
-  async persistAll(articles: CatalogueArticle[]): Promise<void> {
+  async persistAll(articles: CatalogueArticle[]): Promise<{ error: string | null }> {
     const sb = getSupabase();
-    if (!sb || articles.length === 0) return;
-    await sb.from("catalogue").upsert(articles);
+    if (!sb || articles.length === 0) return { error: null };
+    const { error } = await sb.from("catalogue").upsert(articles);
+    return { error: error ? `catalogue : ${error.message}` : null };
   }
 }
 
