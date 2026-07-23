@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, MapPin, Navigation, Phone } from "lucide-react";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { Badge } from "@/components/ui/Badge";
@@ -8,13 +8,17 @@ import { Card } from "@/components/ui/Card";
 import { useLeadsStore } from "@/lib/leads/store";
 import { useIdentity } from "@/lib/roles/IdentityProvider";
 import { formatDate } from "@/lib/format";
-import type { Lead, RdvType } from "@/lib/types";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { fetchMesRdv, type ChantierRdv } from "@/lib/mobile/tournee";
 import { adresseComplete, mapsLink } from "@/components/leads/fiche/rdvSync";
+import type { RdvType } from "@/lib/types";
 
-// SOURCE UNIQUE : la tournée du technicien est dérivée des RDV portés par les
-// leads (lead.rdv), exactement ce que le planning desktop pose au confirmerRdv.
-// Plus de jeu de démo `interventions` divergent. Aucun montant ici (le
-// technicien n'en voit jamais) : seulement créneau, client, adresse, contact.
+// SOURCE UNIQUE = lead.rdv. Deux lectures selon le contexte, jamais deux données :
+//  · Supabase : le technicien est AVEUGLE AUX MONTANTS → il ne lit pas `leads`
+//    mais la vue `chantiers` (projection sans montants de lead.rdv, scopée à ses
+//    RDV par la RLS).
+//  · Démo/local : pas de RLS → on lit lead.rdv directement dans le store.
+// Aucun montant affiché dans les deux cas.
 
 const TYPE_LABEL: Record<RdvType, string> = {
   pose: "Pose",
@@ -35,41 +39,49 @@ const localDay = (iso: string) => {
 const heure = (iso: string) =>
   new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-function CarteRdv({ lead }: { lead: Lead }) {
-  const rdv = lead.rdv!;
-  const adr = adresseComplete(lead);
+interface Stop {
+  id: string;
+  nom: string;
+  telephone: string | null;
+  adresse: string;
+  debut: string;
+  fin: string;
+  type: RdvType;
+}
+
+function CarteRdv({ s }: { s: Stop }) {
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 font-mono text-[15px] font-semibold text-ink">
             <CalendarClock className="size-4 text-brand" strokeWidth={2} />
-            {heure(rdv.debut)} – {heure(rdv.fin)}
+            {heure(s.debut)} – {heure(s.fin)}
           </p>
-          <p className="mt-0.5 truncate text-sm text-ink">{lead.nom}</p>
+          <p className="mt-0.5 truncate text-sm text-ink">{s.nom}</p>
         </div>
-        <Badge tone={TON_TYPE[rdv.type]}>{TYPE_LABEL[rdv.type]}</Badge>
+        <Badge tone={TON_TYPE[s.type]}>{TYPE_LABEL[s.type]}</Badge>
       </div>
 
       <div className="mt-3 space-y-2 text-[13px]">
-        {adr ? (
+        {s.adresse ? (
           <p className="flex items-start gap-2 text-muted">
             <MapPin className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
-            <span className="text-ink">{adr}</span>
+            <span className="text-ink">{s.adresse}</span>
           </p>
         ) : null}
-        {lead.telephone ? (
+        {s.telephone ? (
           <a
-            href={`tel:${lead.telephone.replace(/\s/g, "")}`}
+            href={`tel:${s.telephone.replace(/\s/g, "")}`}
             className="flex items-center gap-2 text-brand"
           >
             <Phone className="size-4 shrink-0" strokeWidth={1.75} />
-            <span className="font-mono">{lead.telephone}</span>
+            <span className="font-mono">{s.telephone}</span>
           </a>
         ) : null}
-        {adr ? (
+        {s.adresse ? (
           <a
-            href={mapsLink(adr)}
+            href={mapsLink(s.adresse)}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 text-brand underline"
@@ -83,21 +95,64 @@ function CarteRdv({ lead }: { lead: Lead }) {
   );
 }
 
+const chantierAdresse = (c: ChantierRdv) =>
+  [c.adresse, [c.code_postal, c.ville].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
 export function MaTourneeScreen() {
-  const { loaded, leads } = useLeadsStore();
+  const { loaded: leadsLoaded, leads } = useLeadsStore();
   const { identite } = useIdentity();
 
-  // Mes RDV = les leads dont le RDV m'est assigné, groupés par jour.
+  // En Supabase, on passe par la vue `chantiers` (sans montants).
+  const [chantiers, setChantiers] = useState<ChantierRdv[] | null>(null);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !identite.id) {
+      setChantiers(null);
+      return;
+    }
+    let actif = true;
+    fetchMesRdv(identite.id).then((r) => actif && setChantiers(r));
+    return () => {
+      actif = false;
+    };
+  }, [identite.id]);
+
+  const loaded = isSupabaseConfigured ? chantiers !== null : leadsLoaded;
+
+  // Mes RDV, normalisés en `Stop`, groupés par jour.
   const jours = useMemo(() => {
-    if (!identite.id) return [];
-    const mine = leads.filter((l) => l.rdv && l.rdv.technicien_id === identite.id);
-    const par = new Map<string, Lead[]>();
-    for (const l of mine.sort((a, b) => a.rdv!.debut.localeCompare(b.rdv!.debut))) {
-      const j = localDay(l.rdv!.debut);
-      par.set(j, [...(par.get(j) ?? []), l]);
+    let stops: Stop[] = [];
+    if (isSupabaseConfigured) {
+      stops = (chantiers ?? [])
+        .filter((c) => c.rdv_debut && c.rdv_fin)
+        .map((c) => ({
+          id: c.id,
+          nom: c.nom,
+          telephone: c.telephone,
+          adresse: chantierAdresse(c),
+          debut: c.rdv_debut as string,
+          fin: c.rdv_fin as string,
+          type: (c.rdv_type as RdvType) ?? "pose",
+        }));
+    } else if (identite.id) {
+      stops = leads
+        .filter((l) => l.rdv && l.rdv.technicien_id === identite.id)
+        .map((l) => ({
+          id: l.id,
+          nom: l.nom,
+          telephone: l.telephone,
+          adresse: adresseComplete(l),
+          debut: l.rdv!.debut,
+          fin: l.rdv!.fin,
+          type: l.rdv!.type,
+        }));
+    }
+    const par = new Map<string, Stop[]>();
+    for (const s of stops.sort((a, b) => a.debut.localeCompare(b.debut))) {
+      const j = localDay(s.debut);
+      par.set(j, [...(par.get(j) ?? []), s]);
     }
     return [...par.entries()];
-  }, [leads, identite.id]);
+  }, [chantiers, leads, identite.id]);
 
   return (
     <div className="mx-auto max-w-xl">
@@ -126,8 +181,8 @@ export function MaTourneeScreen() {
                 <span className="font-mono">{items.length}</span> RDV
               </h2>
               <div className="space-y-3">
-                {items.map((l) => (
-                  <CarteRdv key={l.id} lead={l} />
+                {items.map((s) => (
+                  <CarteRdv key={s.id} s={s} />
                 ))}
               </div>
             </section>

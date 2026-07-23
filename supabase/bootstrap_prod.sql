@@ -1,6 +1,6 @@
 -- ============================================================================
 --  VDE Cockpit — Bootstrap Supabase PROD (schéma complet, idempotent).
---  Consolide les migrations 0001 + 0004 → 0021, dans l'ordre.
+--  Consolide les migrations 0001 + 0004 → 0022, dans l'ordre.
 --
 --  EXCLUS volontairement :
 --    · supabase/dev-only/0002_dev_open_access.sql (accès anon de dev) ;
@@ -999,6 +999,37 @@ create policy "logos_delete" on storage.objects
     and (select public.app_voit_entite(split_part(name, '/', 1)))
     and (select public.app_role()) = 'admin'
   );
+
+-- ============================================================================
+--  0022 — chantiers : projeter le RDV (lead.rdv) sur la vue SANS montants.
+--  Canal terrain du technicien (aveugle aux montants → ne lit pas `leads`).
+-- ============================================================================
+create or replace view public.chantiers
+with (security_invoker = off) as
+  select
+    l.id, l.entite, l.nom, l.telephone, l.email,
+    l.adresse, l.code_postal, l.ville,
+    l.type_logement, l.puissance_souhaitee, l.reseau,
+    l.emplacement, l.fixation, l.obstacles, l.distance_tableau,
+    l.statut, l.date_reception, l.assigne_a, l.archived,
+    (l.rdv ->> 'debut')::timestamptz as rdv_debut,
+    (l.rdv ->> 'fin')::timestamptz   as rdv_fin,
+    (l.rdv ->> 'type')               as rdv_type,
+    (l.rdv ->> 'technicien_id')      as rdv_technicien_id
+  from public.leads l
+  where (select public.app_voit_entite(l.entite::text))
+    and (select public.app_peut('clients'))
+    and (
+      (select public.app_role()) is distinct from 'technicien'
+      or exists (
+        select 1 from public.interventions i
+         where i.lead_id = l.id and i.technicien_id = auth.uid()
+      )
+      or (l.rdv ->> 'technicien_id') = auth.uid()::text
+    );
+
+revoke all on public.chantiers from public, anon;
+grant select on public.chantiers to authenticated;
 
 commit;
 
