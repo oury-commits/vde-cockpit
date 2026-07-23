@@ -6,9 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useToast } from "@/components/ui/Toast";
 import type {
   AccessAction,
   AccessLogEntry,
@@ -64,6 +66,8 @@ const roleLabel = (r: Role | null) => (r ? ROLE_LABEL[r] : "Non assigné");
 const entiteLabel = (e: EntiteAcces | null) => (e ? ENTITE_LABEL[e] : "Aucune entité");
 
 export function ProfilesProvider({ children }: { children: ReactNode }) {
+  const { notify } = useToast();
+  const persistErr = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [journal, setJournal] = useState<AccessLogEntry[]>([]);
@@ -91,8 +95,20 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
-    void getProfilesRepository().persistAll(profiles);
-  }, [loaded, profiles]);
+    void getProfilesRepository()
+      .persistAll(profiles)
+      .then((res) => {
+        if (res.error) {
+          if (persistErr.current !== res.error) {
+            persistErr.current = res.error;
+            console.error("[persist] profiles:", res.error);
+            notify(`Sauvegarde impossible (${res.error}). Recharge la page.`, "alert");
+          }
+        } else {
+          persistErr.current = null;
+        }
+      });
+  }, [loaded, profiles, notify]);
 
   const log = useCallback(
     (auteur: string, action: AccessAction, cible: string, detail: string) => {

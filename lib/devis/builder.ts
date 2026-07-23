@@ -158,6 +158,8 @@ export function buildDraft(
     qr_articles: articles
       .filter((a) => a.categorie === "borne" && a.afficher_qr && a.url_produit)
       .map((a) => a.id),
+    ligne_overrides: {},
+    lignes_libres: [],
     taux_marge: MARGE_DEFAUT,
     remise_type: "percent",
     remise_valeur: 0,
@@ -227,7 +229,27 @@ export function deriveLignes(
   const push = (id: string | null, qty = 1) => {
     if (!id) return;
     const a = byId.get(id);
-    if (a) lignes.push(ligneFromArticle(a, qty, marge, coutOf(a), tauxLigne(a), qrOn.has(a.id)));
+    if (!a) return;
+    let l = ligneFromArticle(a, qty, marge, coutOf(a), tauxLigne(a), qrOn.has(a.id));
+    // Surcharge par-devis : renommage et/ou PU vente imposé (marge recalculée
+    // depuis le coût figé). Un PU sous le coût → marge négative, visible en interne.
+    const ov = draft.ligne_overrides[a.id];
+    if (ov) {
+      const designation = ov.designation?.trim() ? ov.designation.trim() : l.designation;
+      if (ov.pu_ht != null && ov.pu_ht >= 0) {
+        const pu = round2(ov.pu_ht);
+        l = {
+          ...l,
+          designation,
+          pu_ht: pu,
+          total_ht: round2(pu * qty),
+          taux_marge: pu > 0 ? (pu - l.cout_ht) / pu : 0,
+        };
+      } else {
+        l = { ...l, designation };
+      }
+    }
+    lignes.push(l);
   };
 
   push(draft.config.borne_id);
@@ -258,6 +280,27 @@ export function deriveLignes(
       return ca - cb;
     });
   for (const s of sups) push(s.article_id, s.quantite);
+
+  // Lignes libres (hors catalogue) : en fin de devis. Aucun coût → toute la
+  // ligne est de la marge (le PU est saisi à la main).
+  for (const ll of draft.lignes_libres) {
+    if (ll.quantite <= 0) continue;
+    const pu = round2(ll.pu_ht);
+    lignes.push({
+      id: ll.id,
+      article_id: null,
+      designation: ll.designation.trim() || "Ligne libre",
+      categorie: "libre",
+      unite: ll.unite,
+      quantite: ll.quantite,
+      cout_ht: 0,
+      taux_marge: 1,
+      pu_ht: pu,
+      total_ht: round2(pu * ll.quantite),
+      taux_tva: autoliq ? 0 : ll.taux_tva,
+      url_produit: null,
+    });
+  }
 
   return lignes;
 }

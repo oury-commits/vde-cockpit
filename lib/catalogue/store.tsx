@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,6 +15,7 @@ import {
   catalogueRepoKind,
   getCatalogueRepository,
 } from "@/lib/catalogue/repository";
+import { useToast } from "@/components/ui/Toast";
 
 /** Champs saisis à la création/édition d'un article. */
 export type ArticleInput = Omit<
@@ -41,6 +43,8 @@ function nextId(articles: CatalogueArticle[]): string {
 }
 
 export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
+  const { notify } = useToast();
+  const persistErr = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [articles, setArticles] = useState<CatalogueArticle[]>([]);
 
@@ -61,8 +65,20 @@ export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
-    void getCatalogueRepository().persistAll(articles);
-  }, [loaded, articles]);
+    void getCatalogueRepository()
+      .persistAll(articles)
+      .then((res) => {
+        if (res.error) {
+          if (persistErr.current !== res.error) {
+            persistErr.current = res.error;
+            console.error("[persist] catalogue:", res.error);
+            notify(`Sauvegarde impossible (${res.error}). Recharge la page.`, "alert");
+          }
+        } else {
+          persistErr.current = null;
+        }
+      });
+  }, [loaded, articles, notify]);
 
   const addArticle = useCallback<CatalogueStoreValue["addArticle"]>((input) => {
     setArticles((prev) => {

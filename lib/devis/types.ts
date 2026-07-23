@@ -92,6 +92,26 @@ export interface DevisSupplement {
   quantite: number;
 }
 
+/**
+ * Surcharge d'une ligne CATALOGUE (clé = article_id) : renommage et/ou PU de
+ * vente HT imposé à la main. `pu_ht` absent = PU dérivé de la marge (défaut).
+ */
+export interface LigneOverride {
+  designation?: string;
+  pu_ht?: number;
+}
+
+/** Ligne LIBRE hors-catalogue : désignation + quantité + PU saisis à la main. */
+export interface LigneLibre {
+  id: string;
+  designation: string;
+  unite: Unite;
+  quantite: number;
+  /** PU de vente HT (saisi ; pas de coût → marge = 100 % de cette ligne). */
+  pu_ht: number;
+  taux_tva: number;
+}
+
 export interface DevisDraft {
   entite: Entite;
   lead_id: string | null;
@@ -107,6 +127,10 @@ export interface DevisDraft {
    * jamais de QR sur pose/consommables (règle produit).
    */
   qr_articles: string[];
+  /** Surcharges des lignes catalogue (renommage / PU manuel), par article_id. */
+  ligne_overrides: Record<string, LigneOverride>;
+  /** Lignes libres ajoutées à la main (hors catalogue). */
+  lignes_libres: LigneLibre[];
   taux_marge: number; // marge cible globale (0.35 par défaut)
   /** Réduction commerciale : saisie en % du HT ou en montant fixe, + motif. */
   remise_type: "percent" | "montant";

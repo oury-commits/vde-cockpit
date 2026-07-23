@@ -7,7 +7,8 @@ const STORAGE_KEY = "vde.profiles.v1";
 export interface ProfilesRepository {
   readonly kind: "local" | "supabase";
   loadAll(): Promise<Profile[]>;
-  persistAll(profiles: Profile[]): Promise<void>;
+  /** `error` null = OK ; sinon message à REMONTER (jamais avalé). */
+  persistAll(profiles: Profile[]): Promise<{ error: string | null }>;
 }
 
 class LocalProfilesRepository implements ProfilesRepository {
@@ -23,11 +24,12 @@ class LocalProfilesRepository implements ProfilesRepository {
     return buildProfilesSeed();
   }
 
-  async persistAll(profiles: Profile[]): Promise<void> {
+  async persistAll(profiles: Profile[]): Promise<{ error: string | null }> {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-    } catch {
-      /* ignore */
+      return { error: null };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "stockage local indisponible" };
     }
   }
 }
@@ -47,10 +49,11 @@ class SupabaseProfilesRepository implements ProfilesRepository {
     return data as Profile[];
   }
 
-  async persistAll(profiles: Profile[]): Promise<void> {
+  async persistAll(profiles: Profile[]): Promise<{ error: string | null }> {
     const sb = getSupabase();
-    if (!sb || profiles.length === 0) return;
-    await sb.from("profiles").upsert(profiles);
+    if (!sb || profiles.length === 0) return { error: null };
+    const { error } = await sb.from("profiles").upsert(profiles);
+    return { error: error ? `équipe : ${error.message}` : null };
   }
 }
 

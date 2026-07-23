@@ -27,6 +27,7 @@ import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
 import type { DevisDraft, ModeDevis, VueDevis } from "@/lib/devis/types";
 import { MODE_DEVIS_LABEL, WIZARD_STEPS } from "@/lib/devis/types";
 import { buildDraft, deriveLignes } from "@/lib/devis/builder";
+import { uid } from "@/lib/uid";
 import {
   buildEcheancierPaiement,
   computeTotaux,
@@ -171,6 +172,55 @@ export function DevisWizard({ leadId }: { leadId?: string }) {
           set.has(key) ? set.delete(key) : set.add(key);
           return { ...d, controle_non_conformes: [...set] };
         }),
+      setLigneNom: (articleId, nom) =>
+        setDraft((d) =>
+          d
+            ? {
+                ...d,
+                ligne_overrides: {
+                  ...d.ligne_overrides,
+                  [articleId]: { ...d.ligne_overrides[articleId], designation: nom },
+                },
+              }
+            : d,
+        ),
+      setLignePu: (articleId, pu) =>
+        setDraft((d) =>
+          d
+            ? {
+                ...d,
+                ligne_overrides: {
+                  ...d.ligne_overrides,
+                  [articleId]: {
+                    ...d.ligne_overrides[articleId],
+                    pu_ht: pu == null ? undefined : pu,
+                  },
+                },
+              }
+            : d,
+        ),
+      addLigneLibre: () =>
+        setDraft((d) =>
+          d
+            ? {
+                ...d,
+                lignes_libres: [
+                  ...d.lignes_libres,
+                  { id: uid(), designation: "", unite: "u", quantite: 1, pu_ht: 0, taux_tva: 0.2 },
+                ],
+              }
+            : d,
+        ),
+      updateLigneLibre: (id, patch) =>
+        setDraft((d) =>
+          d
+            ? { ...d, lignes_libres: d.lignes_libres.map((l) => (l.id === id ? { ...l, ...patch } : l)) }
+            : d,
+        ),
+      removeLigneLibre: (id) =>
+        setDraft((d) =>
+          d ? { ...d, lignes_libres: d.lignes_libres.filter((l) => l.id !== id) } : d,
+        ),
     };
   }, [draft, totaux, articles, coutOf, lignes, controle, vue]);
 
