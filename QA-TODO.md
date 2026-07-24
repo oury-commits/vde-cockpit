@@ -45,10 +45,12 @@ vrai sous-dimensionnement (le blocage est manuel). → brancher tes **vraies rè
 (calibre / section de câble / différentiel selon réseau + puissance) et une
 comparaison « déclaré vs requis » qui met OK/ERREUR automatiquement.
 
-### 3. Aides Grand Est réelles
+### 3. Aides / subventions — ABANDONNÉ (note historique)
 
-`lib/devis/builder.ts` : montant Advenir + « Aide Locale Grand Est » (−1 000 € en
-démo) à confirmer / brancher sur le vrai barème.
+Décision produit : **aucune aide n'est calculée ni affichée** (Advenir supprimé, prime
+autoconso supprimée en 2026). `lib/devis/builder.ts` n'ajoute aucune subvention ; les
+PDF devis/facture n'affichent aucune aide. Rien à brancher. (Ancienne note « montant
+Advenir + Aide Grand Est » : caduque.)
 
 ### 4. Placeholders sidebar (#6/#7 de l'audit)
 
@@ -219,3 +221,14 @@ session dans le scratchpad (hors repo, éphémère). Méthode :
    `chromium.launch({ channel: "chrome" })`.
 3. Scénario clé : créer un devis (FB-001) → noter le n° ; supprimer FB-001 ;
    créer un devis (FB-002) → le n° ne doit **pas** être réutilisé.
+
+---
+
+## Backlog / dette technique
+
+- **3 vulnérabilités « high » dans l'arbre dev de `tsx` / `esbuild`** (installé pour
+  `npm run test:etats`). **DEV-ONLY** : jamais embarqué dans le build Next ni en prod.
+  Ne PAS lancer `npm audit fix --force` (casse la toolchain de test). À réévaluer
+  quand `tsx`/`esbuild` publient un correctif — simple bump de version le moment venu.
+- **Note Google (★ + nb avis)** absente de « Mon entreprise » : seul `lien_avis` (URL)
+  existe. Nécessitera un champ + migration (prévu au Lot 3 « rendu devis/facture »).

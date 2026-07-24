@@ -51,6 +51,7 @@ import {
   MODE_REGLEMENT_LABEL,
   peutGenererSolde,
 } from "@/lib/leads/reglements";
+import { statutApresAcompte } from "@/lib/leads/etats";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
 import { MEMBRES, STATUT_META, isLeadProtege } from "@/lib/leads/meta";
@@ -879,43 +880,63 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
         auteur,
       };
 
+      // §E — un encaissement ACCEPTE le devis automatiquement (« acompte
+      // encaissé → devis Accepté », zéro double saisie). L'acompte est l'événement
+      // pivot : plus besoin de « Marquer signé » au préalable.
+      const dejaSigne = lead.devis.statut === "signe";
       setLeads((prev) =>
         prev.map((l) => {
-          if (l.id !== leadId) return l;
+          if (l.id !== leadId || !l.devis) return l;
           const reglements = [...(l.reglements ?? []), reglement];
           const factures_acompte = factureAcompte
             ? [...(l.factures_acompte ?? []), factureAcompte]
             : (l.factures_acompte ?? null);
-          // Alma solde tout : chaque échéance passe encaissée. Sinon on marque
-          // l'échéance visée (ou la première encore attendue).
-          let echeancier = l.echeancier ?? null;
-          if (echeancier) {
-            if (input.mode === "alma") {
-              echeancier = echeancier.map((e) => ({
-                ...e,
-                statut: "encaisse" as const,
-                date_encaissement: e.date_encaissement ?? now,
-              }));
-            } else {
-              const cible =
-                input.echeanceIndex ??
-                echeancier.findIndex((e) => e.statut !== "encaisse");
-              echeancier = echeancier.map((e, i) =>
-                i === cible
-                  ? { ...e, statut: "encaisse" as const, date_encaissement: now }
-                  : e,
-              );
-            }
+          // Le devis passe « signé » et l'échéancier se crée s'il manque (comme
+          // signDevis) — pour que l'encaissement pose l'acceptation d'un bloc.
+          const devis = dejaSigne ? l.devis : { ...l.devis, statut: "signe" as const };
+          let echeancier =
+            l.echeancier && l.echeancier.length > 0
+              ? l.echeancier
+              : buildEcheancier(l.devis.montant_ttc);
+          if (input.mode === "alma") {
+            echeancier = echeancier.map((e) => ({
+              ...e,
+              statut: "encaisse" as const,
+              date_encaissement: e.date_encaissement ?? now,
+            }));
+          } else {
+            const cible =
+              input.echeanceIndex ??
+              echeancier.findIndex((e) => e.statut !== "encaisse");
+            echeancier = echeancier.map((e, i) =>
+              i === cible
+                ? { ...e, statut: "encaisse" as const, date_encaissement: now }
+                : e,
+            );
           }
+          // Le pipeline avance à « signé » s'il était en amont — jamais de
+          // régression d'un dossier déjà planifié/installé (helper testé).
+          const statut = statutApresAcompte(l.statut);
           return {
             ...l,
+            devis,
             reglements,
             factures_acompte,
             echeancier,
+            statut,
+            statut_change_at: statut !== l.statut ? now : l.statut_change_at,
             updated_at: now,
           };
         }),
       );
+      // Trace l'acceptation automatique (une fois, si le devis n'était pas signé).
+      if (!dejaSigne) {
+        pushActivite(
+          leadId,
+          "signature",
+          `Devis ${lead.devis.ref} accepté automatiquement (acompte encaissé)`,
+        );
+      }
 
       const modeLabel = MODE_REGLEMENT_LABEL[input.mode];
       pushActivite(
