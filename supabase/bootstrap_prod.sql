@@ -1,6 +1,8 @@
 -- ============================================================================
 --  VDE Cockpit — Bootstrap Supabase PROD (schéma complet, idempotent).
---  Consolide les migrations 0001 + 0004 → 0023, dans l'ordre.
+--  Consolide les migrations 0001 + 0004 → 0023, plus 0025 (fix RLS activites).
+--  NB : 0024 (catalogue solaire) vit sur sa branche dédiée et fusionne à part —
+--  à réconcilier ici au merge.
 --
 --  EXCLUS volontairement :
 --    · supabase/dev-only/0002_dev_open_access.sql (accès anon de dev) ;
@@ -520,6 +522,16 @@ create policy activites_select on public.activites
 drop policy if exists activites_insert on public.activites;
 create policy activites_insert on public.activites
   for insert to authenticated
+  with check (public.app_voit_lead(lead_id));
+
+-- 0025 — policy UPDATE : l'app persiste la timeline par upsert du tableau complet
+-- (INSERT ... ON CONFLICT DO UPDATE) ; sans policy UPDATE, la branche UPDATE de
+-- l'upsert est refusée (« USING expression »). Scopée par le lead (miroir de leads).
+-- Pas de DELETE : une trace ne s'efface pas (l'upsert n'efface jamais).
+drop policy if exists activites_update on public.activites;
+create policy activites_update on public.activites
+  for update to authenticated
+  using (public.app_voit_lead(lead_id))
   with check (public.app_voit_lead(lead_id));
 
 -- 6. catalogue — contient les coûts d'achat.
