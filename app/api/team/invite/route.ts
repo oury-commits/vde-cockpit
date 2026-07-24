@@ -72,8 +72,16 @@ export async function POST(request: Request) {
   const { data: invited, error: inviteErr } =
     await admin.auth.admin.inviteUserByEmail(email);
   if (inviteErr || !invited?.user?.id) {
+    const msg = inviteErr?.message ?? "réponse vide";
+    // Auto-diagnostic : « kid <nil> / ES256 / invalid JWT » = la clé service_role
+    // fournie est une ANCIENNE clé legacy (eyJ…) que l'Auth ne vérifie plus depuis
+    // la bascule aux clés de signature asymétriques. Il faut la clé secrète sb_secret_…
+    const cleLegacy = /\bkid\b|ES256|invalid JWT|algorithm|signature/i.test(msg);
+    const indice = cleLegacy
+      ? " — Indice : SUPABASE_SERVICE_ROLE_KEY est probablement une ancienne clé JWT legacy (eyJ…). Depuis le passage aux clés asymétriques, renseigne la clé SECRÈTE « sb_secret_… » (Supabase → Project Settings → API)."
+      : "";
     return NextResponse.json(
-      { error: `Invitation Auth impossible : ${inviteErr?.message ?? "réponse vide"}` },
+      { error: `Invitation Auth impossible : ${msg}${indice}` },
       { status: 502 },
     );
   }
