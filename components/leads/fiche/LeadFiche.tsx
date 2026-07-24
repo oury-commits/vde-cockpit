@@ -9,6 +9,7 @@ import {
   FileText,
   Mail,
   MapPin,
+  MailPlus,
   MessageCircle,
   Pencil,
   PenLine,
@@ -52,6 +53,7 @@ import { Input, Select } from "@/components/ui/Field";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
 import { EnvoiDialog } from "@/components/leads/EnvoiDialog";
+import { RelanceDialog } from "@/components/emails/RelanceDialog";
 import { RepriseBandeau } from "@/components/leads/fiche/RepriseBandeau";
 import { JalonsRow } from "@/components/leads/fiche/JalonsRow";
 import { Timeline } from "@/components/leads/Timeline";
@@ -143,6 +145,7 @@ export function LeadFiche() {
   const [note, setNote] = useState("");
   const [tvaMode, setTvaMode] = useState<ModeTva | "">("");
   const [envoi, setEnvoi] = useState<"devis" | "facture" | null>(null);
+  const [relanceOpen, setRelanceOpen] = useState(false);
   const [noteType, setNoteType] = useState(NOTE_TYPES[3].key);
 
   const faisabilite = useMemo(
@@ -277,6 +280,9 @@ export function LeadFiche() {
             size="sm"
           >
             Créer le devis
+          </Button>
+          <Button variant="secondary" size="sm" icon={MailPlus} onClick={() => setRelanceOpen(true)}>
+            Écrire / Relancer
           </Button>
           <ActionLink href={`tel:${tel}`} icon={Phone}>Appeler</ActionLink>
           <ActionLink href={waLink(lead.telephone, lead.entite)} icon={MessageCircle} external>WhatsApp</ActionLink>
@@ -604,6 +610,11 @@ export function LeadFiche() {
           lead={lead}
           kind={envoi}
         />
+      ) : null}
+
+      {/* Écrire / Relancer — modèles d'emails pré-remplis */}
+      {relanceOpen ? (
+        <RelanceDialog lead={lead} onClose={() => setRelanceOpen(false)} />
       ) : null}
     </div>
   );

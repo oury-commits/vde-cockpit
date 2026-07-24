@@ -261,6 +261,11 @@ export function MonEntreprise() {
                 onChange={(e) => set("mentions_legales", e.target.value)}
               />
             </Field>
+            <Champ
+              label="Lien avis Google (modèles d'emails)"
+              v={form.lien_avis}
+              on={(x) => set("lien_avis", x)}
+            />
           </div>
         </Bloc>
       </div>

@@ -8,6 +8,7 @@ import { SettingsProvider } from "@/lib/settings/store";
 import { ProfilesProvider } from "@/lib/roles/ProfilesProvider";
 import { IdentityProvider } from "@/lib/roles/IdentityProvider";
 import { EntrepriseProvider } from "@/lib/entreprise/EntrepriseProvider";
+import { ModelesProvider } from "@/lib/emails/ModelesProvider";
 import { DevIdentityBar } from "@/components/roles/DevIdentityBar";
 import { RouteGuard } from "@/components/roles/RouteGuard";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -28,6 +29,7 @@ export default function AppLayout({
         <IdentityProvider>
           <SettingsProvider>
             <EntrepriseProvider>
+              <ModelesProvider>
               <EntityProvider>
                 <div className="flex min-h-screen">
                   <Sidebar />
@@ -42,6 +44,7 @@ export default function AppLayout({
                   <BottomNav />
                 </div>
               </EntityProvider>
+              </ModelesProvider>
             </EntrepriseProvider>
           </SettingsProvider>
         </IdentityProvider>

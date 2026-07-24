@@ -8,6 +8,7 @@ import { formatMontant } from "@/lib/format";
 import { arrondiMad } from "@/lib/catalogue/prix";
 import { CalendarConnect } from "@/components/settings/CalendarConnect";
 import { MonEntreprise } from "@/components/settings/MonEntreprise";
+import { ModelesEmail } from "@/components/settings/ModelesEmail";
 import { SecuriteMotDePasse } from "@/components/settings/SecuriteMotDePasse";
 
 export function ParametresView() {
@@ -18,6 +19,8 @@ export function ParametresView() {
       <PageTitle>Paramètres</PageTitle>
 
       <MonEntreprise />
+
+      <ModelesEmail />
 
       <CalendarConnect />
 
