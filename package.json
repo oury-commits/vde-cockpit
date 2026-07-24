@@ -12,7 +12,8 @@
     "test:calendar-event": "node scripts/calendar-event-test.mjs",
     "test:planning": "node scripts/planning-tour-test.mjs",
     "test:entreprise": "node scripts/entreprise-isolation-test.mjs",
-    "test:reste": "node scripts/reste-test.mjs"
+    "test:reste": "node scripts/reste-test.mjs",
+    "test:etats": "tsx scripts/etats-test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.5",
@@ -33,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

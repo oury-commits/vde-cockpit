@@ -1,4 +1,4 @@
-import type { Lead } from "@/lib/types";
+import type { Lead, Statut } from "@/lib/types";
 import {
   aEncaissement,
   estSolde,
@@ -106,6 +106,26 @@ export function statutFactureAffiche(
   if (factureEnRetard(lead, now)) return "en_retard";
   if (f.envoye_le) return "envoyee";
   return "brouillon";
+}
+
+// ── Invariant §E.2 : l'acompte accepte le devis, sans régression du pipeline ──
+
+/** Statuts pipeline EN AMONT de « signé » : un encaissement les fait avancer. */
+export const STATUTS_PRE_SIGNE: Statut[] = [
+  "nouveau",
+  "a_qualifier",
+  "qualifie",
+  "devis_envoye",
+];
+
+/**
+ * Statut du dossier APRÈS un encaissement (« acompte encaissé → devis Accepté »).
+ * Avance à « signé » s'il était en amont ; JAMAIS de régression d'un dossier déjà
+ * planifié / installé / SAV / perdu. Fonction pure — utilisée par le store ET
+ * testée, pour qu'aucune dérive ne s'installe entre les deux.
+ */
+export function statutApresAcompte(statutActuel: Statut): Statut {
+  return STATUTS_PRE_SIGNE.includes(statutActuel) ? "signe" : statutActuel;
 }
 
 // ── « Transformer en facture » : transition autorisée ? (raison sinon) ───────

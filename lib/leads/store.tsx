@@ -51,6 +51,7 @@ import {
   MODE_REGLEMENT_LABEL,
   peutGenererSolde,
 } from "@/lib/leads/reglements";
+import { statutApresAcompte } from "@/lib/leads/etats";
 import { reserveRef } from "@/lib/leads/sequences";
 import { isSameContact } from "@/lib/leads/filters";
 import { MEMBRES, STATUT_META, isLeadProtege } from "@/lib/leads/meta";
@@ -883,7 +884,6 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
       // encaissé → devis Accepté », zéro double saisie). L'acompte est l'événement
       // pivot : plus besoin de « Marquer signé » au préalable.
       const dejaSigne = lead.devis.statut === "signe";
-      const PRE_SIGNE = new Set(["nouveau", "a_qualifier", "qualifie", "devis_envoye"]);
       setLeads((prev) =>
         prev.map((l) => {
           if (l.id !== leadId || !l.devis) return l;
@@ -915,8 +915,8 @@ export function LeadsStoreProvider({ children }: { children: ReactNode }) {
             );
           }
           // Le pipeline avance à « signé » s'il était en amont — jamais de
-          // régression d'un dossier déjà planifié/installé.
-          const statut = PRE_SIGNE.has(l.statut) ? "signe" : l.statut;
+          // régression d'un dossier déjà planifié/installé (helper testé).
+          const statut = statutApresAcompte(l.statut);
           return {
             ...l,
             devis,
