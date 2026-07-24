@@ -275,6 +275,15 @@ verifie("technicien : 0",                              (await nb(U.techFr, "sele
   verifie("assistante : lecture seule sur le catalogue", a.ok === true && a.count === 0);
   const b = await commeUtilisateur(U.caFr, "update catalogue set cout_ht = 500 where id = 'CAT-FR-1'");
   verifie("chargé d'affaires : peut corriger un prix", b.ok === true && b.count === 1);
+  // Chemin réel de l'app : le store catalogue upsert le tableau (ON CONFLICT DO
+  // UPDATE). Un rédacteur (CA) passe ; un lecteur seul (assistante) est refusé —
+  // d'où le garde-fou côté app « ne persister que sur mutation ».
+  const cUp = await commeUtilisateur(U.caFr,
+    `insert into catalogue (id, designation, categorie, cout_ht, entite) values ('CAT-FR-1','Borne 7,4 kW','borne',480,'FR') on conflict (id) do update set cout_ht = excluded.cout_ht`);
+  verifie("chargé d'affaires : upsert catalogue (ON CONFLICT DO UPDATE) passe", cUp.ok === true, cUp.erreur?.slice(0, 50));
+  const cUpAssist = await commeUtilisateur(U.assistFr,
+    `insert into catalogue (id, designation, categorie, cout_ht, entite) values ('CAT-FR-1','Borne 7,4 kW','borne',480,'FR') on conflict (id) do update set cout_ht = excluded.cout_ht`);
+  verifie("assistante : upsert catalogue refusé (lecture seule)", cUpAssist.ok === false);
 }
 
 console.log("\n=== 6. INTERVENTIONS — sa tournée, pas celle du voisin ===");
@@ -310,6 +319,16 @@ verifie("technicien ne voit pas les dérogations d'un collègue",
   verifie("l'admin réaffecte une entité", c.ok === true && c.count === 1);
   const d = await commeUtilisateur(U.admin, `update profiles set entite = 'ALL' where id = '${U.caFr}'`);
   verifie("« Tous pays » reste réservé à l'admin (contrainte base)", d.ok === false, d.erreur?.slice(0, 60));
+  // Chemin réel de l'app : ProfilesProvider upsert le tableau au chargement.
+  // L'écriture profiles est ADMIN-only (anti auto-élévation) : un admin upsert
+  // passe, un non-admin qui ré-upsert SA PROPRE ligne est refusé — d'où le
+  // garde-fou côté app « ne persister que sur mutation » (jamais au chargement).
+  const pUpAdmin = await commeUtilisateur(U.admin,
+    `insert into profiles (id, email, nom, role, entite, actif, overrides, demo) values ('${U.caFr}','cafr@test.local','CA FR','charge_affaires','FR',true,'{}',true) on conflict (id) do update set nom = excluded.nom`);
+  verifie("admin : upsert profil (ON CONFLICT DO UPDATE) passe", pUpAdmin.ok === true, pUpAdmin.erreur?.slice(0, 50));
+  const pUpSelf = await commeUtilisateur(U.caFr,
+    `insert into profiles (id, email, nom, role, entite, actif, overrides, demo) values ('${U.caFr}','cafr@test.local','CA FR','charge_affaires','FR',true,'{}',true) on conflict (id) do update set nom = excluded.nom`);
+  verifie("non-admin : ré-upsert de sa propre ligne refusé (l'app ne persiste plus au chargement)", pUpSelf.ok === false);
 }
 
 console.log("\n=== 8. VUES membres / chantiers ===");
