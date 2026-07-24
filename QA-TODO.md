@@ -45,10 +45,12 @@ vrai sous-dimensionnement (le blocage est manuel). → brancher tes **vraies rè
 (calibre / section de câble / différentiel selon réseau + puissance) et une
 comparaison « déclaré vs requis » qui met OK/ERREUR automatiquement.
 
-### 3. Aides Grand Est réelles
+### 3. Aides / subventions — ABANDONNÉ (note historique)
 
-`lib/devis/builder.ts` : montant Advenir + « Aide Locale Grand Est » (−1 000 € en
-démo) à confirmer / brancher sur le vrai barème.
+Décision produit : **aucune aide n'est calculée ni affichée** (Advenir supprimé, prime
+autoconso supprimée en 2026). `lib/devis/builder.ts` n'ajoute aucune subvention ; les
+PDF devis/facture n'affichent aucune aide. Rien à brancher. (Ancienne note « montant
+Advenir + Aide Grand Est » : caduque.)
 
 ### 4. Placeholders sidebar (#6/#7 de l'audit)
 

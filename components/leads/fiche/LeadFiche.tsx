@@ -51,11 +51,19 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Field";
 import { PageTitle } from "@/components/ui/PageTitle";
-import { StatutBadge, TemperatureDot } from "@/components/leads/badges";
+import { TemperatureDot } from "@/components/leads/badges";
 import { EnvoiDialog } from "@/components/leads/EnvoiDialog";
 import { RelanceDialog } from "@/components/emails/RelanceDialog";
 import { RepriseBandeau } from "@/components/leads/fiche/RepriseBandeau";
 import { JalonsRow } from "@/components/leads/fiche/JalonsRow";
+import { EtatDossier } from "@/components/leads/fiche/EtatDossier";
+import {
+  peutTransformerEnFacture,
+  statutDevisAffiche,
+  statutFactureAffiche,
+  STATUT_DEVIS_LABEL,
+  STATUT_FACTURE_LABEL,
+} from "@/lib/leads/etats";
 import { Timeline } from "@/components/leads/Timeline";
 import { EditLeadDialog } from "@/components/leads/fiche/EditLeadDialog";
 import { cn } from "@/lib/cn";
@@ -93,6 +101,21 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
       <span className="text-muted">{label}</span>
       <span className="text-right text-ink">{value || "—"}</span>
     </div>
+  );
+}
+
+type DocTone = "muted" | "gold" | "success" | "alert";
+function DocStatutBadge({ label, tone }: { label: string; tone: DocTone }) {
+  const cls: Record<DocTone, string> = {
+    muted: "bg-cream text-muted",
+    gold: "bg-gold/20 text-gold-ink",
+    success: "bg-success/12 text-success",
+    alert: "bg-alert/12 text-alert",
+  };
+  return (
+    <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", cls[tone])}>
+      {label}
+    </span>
   );
 }
 
@@ -181,6 +204,16 @@ export function LeadFiche() {
   // sauf si le dossier y est déjà.
   const rdvDeverrouille =
     aEncaissement(lead) || lead.statut === "planifie" || lead.statut === "installe";
+
+  // Statuts d'affichage DÉRIVÉS des documents (Accepté / Expiré / Payée / En
+  // retard) — jamais stockés (voir lib/leads/etats.ts).
+  const devisAff = statutDevisAffiche(lead);
+  const devisTone: DocTone =
+    devisAff === "accepte" ? "success" : devisAff === "expire" ? "alert" : devisAff === "envoye" ? "gold" : "muted";
+  const factureAff = statutFactureAffiche(lead);
+  const factureTone: DocTone =
+    factureAff === "payee" ? "success" : factureAff === "en_retard" ? "alert" : factureAff === "envoyee" ? "gold" : "muted";
+  const transfo = peutTransformerEnFacture(lead);
 
   const onGenerateDevis = async () => {
     const devis = await store.generateDevis(lead.id, tvaMode || undefined);
@@ -308,6 +341,8 @@ export function LeadFiche() {
 
       {/* ── Reprise de dossier : où on en est, en 2 secondes ── */}
       <div className="mb-4 flex flex-col gap-3">
+        {/* État consolidé + prochain geste (§E) : la source unique de « où on en est ». */}
+        <EtatDossier lead={lead} />
         <RepriseBandeau lead={lead} activites={activites} />
         <JalonsRow lead={lead} activites={activites} />
       </div>
@@ -425,7 +460,7 @@ export function LeadFiche() {
             <div className="rounded-xl border border-line p-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-sm font-semibold text-ink">{lead.devis.ref}</span>
-                <StatutBadge statut={lead.devis.statut === "signe" ? "signe" : "devis_envoye"} />
+                <DocStatutBadge label={STATUT_DEVIS_LABEL[statutDevisAffiche(lead) ?? "brouillon"]} tone={devisTone} />
               </div>
               <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm">
                 <span className="text-muted">Total TTC</span>
@@ -495,9 +530,14 @@ export function LeadFiche() {
           {/* Facture */}
           {lead.facture ? (
             <div className="mt-3 rounded-xl border border-brand/30 bg-brand/5 p-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-sm font-semibold text-brand">{lead.facture.ref}</span>
-                <span className="text-xs text-muted">issue de {lead.facture.devis_ref}</span>
+                <div className="flex items-center gap-2">
+                  {factureAff ? (
+                    <DocStatutBadge label={STATUT_FACTURE_LABEL[factureAff]} tone={factureTone} />
+                  ) : null}
+                  <span className="text-xs text-muted">issue de {lead.facture.devis_ref}</span>
+                </div>
               </div>
               <div className="mt-2 flex justify-between border-t border-brand/15 pt-2 text-sm">
                 <span className="text-muted">Total TTC</span>
@@ -530,18 +570,27 @@ export function LeadFiche() {
                 Voir la facture
               </Button>
             </div>
-          ) : lead.devis?.statut === "signe" &&
-            (lead.factures_acompte?.length ?? 0) === 0 ? (
-            // Dossier sans acompte : facture normale directe. Avec acomptes, la
-            // clôture passe par la facture de SOLDE (carte Règlements).
-            <Button variant="secondary" icon={Receipt} onClick={onConvertFacture} className="mt-3 w-full">
-              Convertir en facture
+          ) : lead.devis && !lead.facture ? (
+            // Transition « Transformer en facture » : grisée AVEC sa raison tant
+            // qu'elle est interdite (devis non accepté, ou dossier à acomptes →
+            // clôture par la facture de SOLDE dans la carte Règlements).
+            <Button
+              variant="secondary"
+              icon={Receipt}
+              onClick={onConvertFacture}
+              disabled={!transfo.ok}
+              title={transfo.raison}
+              className="mt-3 w-full"
+            >
+              Transformer en facture
             </Button>
           ) : null}
         </Card>
 
         {/* Règlements — jauge payé/reste, registre, verrou RDV (dès signature) */}
-        {lead.devis?.statut === "signe" ? <PaiementsCard lead={lead} /> : null}
+        {/* Règlements dès que le devis est ENVOYÉ : encaisser un acompte accepte
+            le devis automatiquement (§E — l'acompte est l'événement pivot). */}
+        {lead.devis && lead.devis.statut !== "brouillon" ? <PaiementsCard lead={lead} /> : null}
 
         {/* Historique */}
         <Card className="lg:col-span-2">
