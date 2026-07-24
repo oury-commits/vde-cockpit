@@ -131,9 +131,12 @@ async function buildDevisDoc(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text("IRVE résidentiel", nomX, 21);
+  // Titre « DEVIS » sans numéro : un devis n'a AUCUNE obligation légale de
+  // numérotation (contrairement à la facture). Le n° reste interne (lien lead,
+  // liste, filière facture) — jamais imprimé côté client.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text(devis.ref, pageW - mx, 15, { align: "right" });
+  doc.text("DEVIS", pageW - mx, 15, { align: "right" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(formatDate(devis.date_creation), pageW - mx, 21, { align: "right" });
