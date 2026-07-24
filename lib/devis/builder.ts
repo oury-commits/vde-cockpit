@@ -154,10 +154,10 @@ export function buildDraft(
     // pas des suppléments figés : voir deriveLignes. Les suppléments sont
     // uniquement les ajouts manuels de l'utilisateur.
     supplements: [],
-    // QR par défaut = bornes marquées `afficher_qr` au catalogue (toggle par-devis).
-    qr_articles: articles
-      .filter((a) => a.categorie === "borne" && a.afficher_qr && a.url_produit)
-      .map((a) => a.id),
+    // QR DÉCOCHÉ par défaut : opt-in par-devis via le toggle du wizard. Absent ou
+    // sans URL → aucun QR imprimé, la mise en page n'en dépend pas (deriveLignes +
+    // le PDF gardent url_produit à null tant que le QR n'est pas explicitement activé).
+    qr_articles: [],
     ligne_overrides: {},
     lignes_libres: [],
     taux_marge: MARGE_DEFAUT,
