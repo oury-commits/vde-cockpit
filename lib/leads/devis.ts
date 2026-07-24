@@ -334,6 +334,19 @@ async function buildDevisDoc(
   return doc;
 }
 
+/**
+ * Nom de fichier client NEUTRE : « Devis-Nom Client.pdf » — SANS le numéro
+ * (qui reste interne : lien lead, liste, classement). Caractères interdits par
+ * le système de fichiers retirés ; nom vide → « Devis.pdf ».
+ */
+export function nomFichierDevis(nomClient: string | null | undefined): string {
+  const nom = (nomClient ?? "")
+    .replace(/[\\/:*?"<>|]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `Devis${nom ? `-${nom}` : ""}.pdf`;
+}
+
 /** Génère le PDF et déclenche le téléchargement (client only). */
 export async function generateDevisPdf(
   client: DevisPdfClient,
@@ -342,7 +355,9 @@ export async function generateDevisPdf(
   fiche?: ParametresEntreprise | null,
 ): Promise<void> {
   const doc = await buildDevisDoc(client, devis, echeancier, fiche);
-  doc.save(`${devis.ref}.pdf`);
+  // Fichier client neutre (le n° de devis n'a aucune obligation légale et reste
+  // interne). La FACTURE, elle, garde son n° dans son nom de fichier.
+  doc.save(nomFichierDevis(client.nom));
 }
 
 /** Même PDF, en Blob — pour dépôt sur Supabase Storage (envoi client). */

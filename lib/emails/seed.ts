@@ -55,27 +55,27 @@ export function buildModelesSeed(): ModeleEmail[] {
       cle: "devis_j2",
       declencheur: "devis_envoye",
       nom: "Devis — relance J+2",
-      objet: "Votre devis {{numero_devis}} — bien reçu ?",
+      objet: "Votre devis du {{date_devis}} — bien reçu ?",
       corps:
-        "Bonjour {{nom}}, je voulais m'assurer que vous avez bien reçu votre devis {{numero_devis}} pour l'installation de votre borne. Je reste à votre entière disposition pour toute question ou ajustement. — {{expediteur_prenom}}, Vision Digital Énergies",
+        "Bonjour {{nom}}, je voulais m'assurer que vous avez bien reçu votre devis du {{date_devis}} pour l'installation de votre borne. Je reste à votre entière disposition pour toute question ou ajustement. — {{expediteur_prenom}}, Vision Digital Énergies",
       ordre: 40,
     }),
     mel({
       cle: "devis_j5",
       declencheur: "devis_envoye",
       nom: "Devis — relance J+5",
-      objet: "Votre devis {{numero_devis}} — pour réserver votre créneau",
+      objet: "Votre devis du {{date_devis}} — pour réserver votre créneau",
       corps:
-        "Bonjour {{nom}}, votre devis {{numero_devis}} ({{montant}}) est prêt. Pour réserver un créneau d'installation avec notre technicien certifié, il suffit de le valider. Je peux aussi vous proposer un règlement en plusieurs fois. Une question ? Je suis là. — {{expediteur_prenom}}, Vision Digital Énergies",
+        "Bonjour {{nom}}, votre devis du {{date_devis}} ({{montant}}) est prêt. Pour réserver un créneau d'installation avec notre technicien certifié, il suffit de le valider. Je peux aussi vous proposer un règlement en plusieurs fois. Une question ? Je suis là. — {{expediteur_prenom}}, Vision Digital Énergies",
       ordre: 50,
     }),
     mel({
       cle: "devis_j14",
       declencheur: "devis_envoye",
       nom: "Devis — avant échéance J+14",
-      objet: "Votre devis {{numero_devis}} arrive à échéance",
+      objet: "Votre devis du {{date_devis}} arrive à échéance",
       corps:
-        "Bonjour {{nom}}, votre devis {{numero_devis}} arrive à échéance le {{date_echeance}}. Si vous souhaitez en profiter aux conditions actuelles, il est encore temps de le valider. Je reste disponible pour en discuter. — {{expediteur_prenom}}, Vision Digital Énergies",
+        "Bonjour {{nom}}, votre devis du {{date_devis}} arrive à échéance le {{date_echeance}}. Si vous souhaitez en profiter aux conditions actuelles, il est encore temps de le valider. Je reste disponible pour en discuter. — {{expediteur_prenom}}, Vision Digital Énergies",
       ordre: 60,
     }),
     mel({
@@ -84,7 +84,7 @@ export function buildModelesSeed(): ModeleEmail[] {
       nom: "Cycle — devis validé",
       objet: "Bienvenue chez VDE — prochaines étapes de votre installation",
       corps:
-        "Bonjour {{civilite}} {{nom}}, un grand merci pour votre confiance. Votre devis {{numero_devis}} est validé. Voici les prochaines étapes : à réception de votre acompte, nous calons ensemble la date d'installation avec notre technicien certifié. Vous pouvez régler en toute sécurité via ce lien : {{lien_paiement}}. Je reste à votre disposition. — {{expediteur_prenom}}, Vision Digital Énergies",
+        "Bonjour {{civilite}} {{nom}}, un grand merci pour votre confiance. Votre devis du {{date_devis}} est validé. Voici les prochaines étapes : à réception de votre acompte, nous calons ensemble la date d'installation avec notre technicien certifié. Vous pouvez régler en toute sécurité via ce lien : {{lien_paiement}}. Je reste à votre disposition. — {{expediteur_prenom}}, Vision Digital Énergies",
       ordre: 70,
     }),
     mel({
