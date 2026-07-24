@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Mail, Send } from "lucide-react";
 import type { Devis, Facture, Lead } from "@/lib/types";
 import { useLeadsStore } from "@/lib/leads/store";
-import { devisPdfBlob, generateDevisPdf } from "@/lib/leads/devis";
+import { devisPdfBlob, generateDevisPdf, nomFichierDevis } from "@/lib/leads/devis";
 import { facturePdfBlob, generateFacturePdf } from "@/lib/leads/facture";
 import { uploadDocument } from "@/lib/documents/storage";
 import { useEntreprise } from "@/lib/entreprise/EntrepriseProvider";
@@ -78,7 +78,15 @@ export function EnvoiDialog({
         kind === "devis"
           ? await devisPdfBlob(lead, doc as Devis, lead.echeancier ?? undefined, ficheDoc)
           : await facturePdfBlob(lead, doc as Facture, ficheDoc);
-      const { url } = await uploadDocument(doc.entite, doc.ref, pdf);
+      // Devis : nom de téléchargement client NEUTRE (« Devis-Nom.pdf »), sans le
+      // n°. Facture : garde son n° (obligation légale). Le chemin storage garde
+      // le n° dans les deux cas (classement interne).
+      const { url } = await uploadDocument(
+        doc.entite,
+        doc.ref,
+        pdf,
+        kind === "devis" ? nomFichierDevis(lead.nom) : undefined,
+      );
       const mail =
         kind === "devis"
           ? emailDevis(doc as Devis, lead.nom, url, ficheDoc)

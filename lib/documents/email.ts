@@ -56,11 +56,14 @@ export function emailDevis(
   const ttc = formatMontant(devis.montant_ttc, devis.devise, { cents: true });
   const borne = modeleBorne(devis.lignes);
   const valide = dateEcheance(devis.date_creation, VALIDITE_DEVIS_JOURS);
+  // Côté client, un devis se désigne par sa DATE, pas par un numéro (le n° reste
+  // interne : lien lead, liste, classement storage). Cohérent avec le PDF + les relances.
+  const dateDevis = formatDate(devis.date_creation);
 
   const lignes = [
     `Bonjour ${nomClient},`,
     "",
-    `Vous trouverez votre devis ${devis.ref} pour l'installation de votre borne de recharge${borne ? ` (${borne})` : ""}.`,
+    `Vous trouverez votre devis du ${dateDevis} pour l'installation de votre borne de recharge${borne ? ` (${borne})` : ""}.`,
     "",
     `Montant total : ${ttc} TTC`,
     `Devis valable jusqu'au ${valide}.`,
@@ -77,7 +80,7 @@ export function emailDevis(
   ];
 
   return {
-    sujet: `Votre devis ${devis.ref} — ${nom}`,
+    sujet: `Votre devis du ${dateDevis} — ${nom}`,
     texte: lignes.join("\n"),
   };
 }
