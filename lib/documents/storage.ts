@@ -29,6 +29,12 @@ export async function uploadDocument(
   entite: Entite,
   ref: string,
   pdf: Blob,
+  /**
+   * Nom de fichier imposé au TÉLÉCHARGEMENT client (Content-Disposition du lien
+   * signé). Le CHEMIN de stockage garde le n° (classement interne) ; seul le nom
+   * vu par le client change. Ex. devis → « Devis-Nom.pdf ». Absent → nom = le n°.
+   */
+  downloadName?: string,
 ): Promise<UploadResult> {
   if (!isSupabaseConfigured) {
     return { url: null, raison: "Stockage indisponible (mode démo local)." };
@@ -44,7 +50,9 @@ export async function uploadDocument(
     return { url: null, raison: `Dépôt impossible : ${up.error.message}` };
   }
 
-  const signed = await sb.storage.from(BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
+  const signed = await sb.storage
+    .from(BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL, downloadName ? { download: downloadName } : undefined);
   if (signed.error || !signed.data?.signedUrl) {
     return {
       url: null,
