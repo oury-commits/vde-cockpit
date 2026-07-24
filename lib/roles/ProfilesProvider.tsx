@@ -68,6 +68,11 @@ const entiteLabel = (e: EntiteAcces | null) => (e ? ENTITE_LABEL[e] : "Aucune en
 export function ProfilesProvider({ children }: { children: ReactNode }) {
   const { notify } = useToast();
   const persistErr = useRef<string | null>(null);
+  // Empreinte des données déjà en base (chargées ou persistées). On NE ré-upsert
+  // QUE sur mutation réelle : sinon le simple chargement re-upsert tout le tableau
+  // — et l'écriture de `profiles` est réservée à l'admin (RLS anti auto-élévation),
+  // donc un non-admin déclencherait un « violates RLS » à chaque ouverture.
+  const persisted = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [journal, setJournal] = useState<AccessLogEntry[]>([]);
@@ -78,6 +83,7 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
       .loadAll()
       .then((p) => {
         if (!actif) return;
+        persisted.current = JSON.stringify(p); // référence = état chargé, pas à ré-écrire
         setProfiles(p);
         setLoaded(true);
       })
@@ -95,6 +101,10 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
+    // Ne persiste QUE si le contenu a changé depuis le dernier chargement/enreg.
+    // (le chargement seul ne doit rien ré-écrire — cf. `persisted`).
+    const snap = JSON.stringify(profiles);
+    if (snap === persisted.current) return;
     void getProfilesRepository()
       .persistAll(profiles)
       .then((res) => {
@@ -106,6 +116,7 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
           }
         } else {
           persistErr.current = null;
+          persisted.current = snap; // nouvelle référence après un enreg. réussi
         }
       });
   }, [loaded, profiles, notify]);

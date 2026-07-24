@@ -45,6 +45,10 @@ function nextId(articles: CatalogueArticle[]): string {
 export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
   const { notify } = useToast();
   const persistErr = useRef<string | null>(null);
+  // Empreinte des données déjà en base : on ne ré-upsert QUE sur mutation réelle.
+  // Le chargement seul ne doit rien ré-écrire — l'écriture catalogue est réservée
+  // aux rôles autorisés (admin/CA), un lecteur seul déclencherait un « violates RLS ».
+  const persisted = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [articles, setArticles] = useState<CatalogueArticle[]>([]);
 
@@ -54,6 +58,7 @@ export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
       .loadAll()
       .then((data) => {
         if (!active) return;
+        persisted.current = JSON.stringify(data); // référence = état chargé
         setArticles(data);
         setLoaded(true);
       })
@@ -65,6 +70,9 @@ export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
+    // Ne persiste QUE sur mutation réelle (le chargement ne ré-upsert rien).
+    const snap = JSON.stringify(articles);
+    if (snap === persisted.current) return;
     void getCatalogueRepository()
       .persistAll(articles)
       .then((res) => {
@@ -76,6 +84,7 @@ export function CatalogueStoreProvider({ children }: { children: ReactNode }) {
           }
         } else {
           persistErr.current = null;
+          persisted.current = snap;
         }
       });
   }, [loaded, articles, notify]);
